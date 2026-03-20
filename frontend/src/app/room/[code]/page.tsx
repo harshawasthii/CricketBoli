@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { fetchWithAuth } from '@/lib/api';
-import { Trophy, History, Users, Wallet, AlertCircle, Megaphone, CheckCircle2, Play, Pause, ChevronRight, Calculator, User } from 'lucide-react';
+import { Trophy, History, Users, Wallet, AlertCircle, Megaphone, CheckCircle2, Play, Pause, ChevronRight, Calculator, User, PlayCircle, XCircle } from 'lucide-react';
 
 export default function RoomPage({ params }: { params: { code: string } }) {
   const router = useRouter();
@@ -52,21 +52,20 @@ export default function RoomPage({ params }: { params: { code: string } }) {
 
   const initRoom = async () => {
     try {
-      const [details, lead, allPlayers] = await Promise.all([
-        fetchWithAuth(`/rooms/${params.code}`),
-        fetchWithAuth(`/rooms/${params.code}/leaderboard`),
-        fetchWithAuth(`/players/all`)
-      ]);
+      const details = await fetchWithAuth(`/rooms/${params.code}`);
+      const lead = await fetchWithAuth(`/rooms/${params.code}/leaderboard`);
+      const allPlayers = await fetchWithAuth(`/players/all`);
+      
       setRoomDetails(details);
       setLeaderboard(lead);
-      setPlayers(allPlayers);
+      setPlayers(allPlayers || []);
       
       const rebuiltEvents: any[] = [];
       if (details.rosters) details.rosters.forEach((r: any) => rebuiltEvents.push({ playerId: r.player_id, userId: r.user_id, amount: r.bought_for, isUnsold: false }));
       if (details.unsold) details.unsold.forEach((u: any) => rebuiltEvents.push({ playerId: u.player_id, amount: 0, isUnsold: true }));
       setSoldEvents(rebuiltEvents);
     } catch (err: any) {
-      setErrorToast('Connection Error. Re-syncing...');
+      setErrorToast('Re-syncing with Arena Servers...');
     }
   };
 
@@ -80,8 +79,9 @@ export default function RoomPage({ params }: { params: { code: string } }) {
 
   const startAdminTimer = (currentState: any) => {
     if (timerIdRef.current) clearTimeout(timerIdRef.current);
+    if (!isAdmin) return;
     
-    let timerState = { ...currentState, status: 'IDLE' };
+    let timerState = { ...currentState };
     setAuctionState(timerState);
     sendRoomUpdate(timerState);
 
@@ -102,7 +102,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
           timerState = { ...timerState, status: 'THRICE' };
           setAuctionState(timerState);
           sendRoomUpdate(timerState);
-          channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '🔨 Going THRICE!' });
+          channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '🔨 Last call! Going THRICE!' });
 
           timerIdRef.current = setTimeout(() => {
             finalizePlayer(timerState);
@@ -113,7 +113,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   };
 
   const finalizePlayer = async (state: any) => {
-    if (!state.current_player_id) return;
+    if (!isAdmin || !state.current_player_id) return;
     try {
       if (state.highest_bidder_id) {
         await fetchWithAuth(`/rooms/${params.code}/sold`, { 
@@ -125,12 +125,13 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       } else {
         await fetchWithAuth(`/rooms/${params.code}/unsold`, { method: 'POST', body: JSON.stringify({ playerId: state.current_player_id }) });
         channelRef.current?.send({ type: 'broadcast', event: 'player_unsold', payload: { playerId: state.current_player_id } });
-        channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '❌ UNSOLD!' });
+        channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '❌ Player UNSOLD!' });
       }
-      setAuctionState({ current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' });
-      sendRoomUpdate({ current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' });
+      const newState = { current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' };
+      setAuctionState(newState);
+      sendRoomUpdate(newState);
       initRoom();
-    } catch (e) { setErrorToast('Finalization Failed'); }
+    } catch (e) { setErrorToast('Finalization Failed. Retrying...'); }
   };
 
   useEffect(() => {
@@ -152,7 +153,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       })
       .on('broadcast', { event: 'biddu_msg' }, ({ payload }) => addBidduMessage(payload))
       .on('broadcast', { event: 'new_bid' }, ({ payload }) => {
-        setAuctionState((prev: any) => ({ ...prev, current_bid: payload.amount, highest_bidder_id: payload.userId }));
+        setAuctionState((prev: any) => ({ ...prev, current_bid: payload.amount, highest_bidder_id: payload.userId, status: 'IDLE' }));
         addBidduMessage(`🚀 Bid: ${formatPrice(payload.amount)}`);
         playSfx('bid');
       })
@@ -160,7 +161,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
         setSoldEvents(prev => [...prev, payload]);
         setAuctionState({ current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' });
         playSfx('sold');
-        setTimeout(initRoom, 800);
+        setTimeout(initRoom, 500);
       })
       .on('broadcast', { event: 'status_change' }, ({ payload }) => {
         setAuctionState((prev: any) => ({ ...prev, status: payload.status }));
@@ -175,11 +176,14 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   }, [params.code]);
 
   const handleStartAuction = (playerId: number) => {
+    if (!isAdmin || !players) return;
     const player = players.find(p => p.id === playerId);
     if (!player) return;
-    let baseStr = String(player.base_price).toLowerCase().trim();
+    
+    let baseStr = String(player.base_price || '0').toLowerCase().trim();
     let num = parseFloat(baseStr.replace(/[^0-9.]/g, '')) || 0;
     let actualBase = baseStr.includes('cr') ? Math.round(num * 10000000) : (baseStr.includes('l') ? Math.round(num * 100000) : num);
+    
     const newState = { current_player_id: playerId, current_bid: actualBase, highest_bidder_id: null, status: 'IDLE' };
     setAuctionState(newState);
     channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: `⚡ UP NEXT: ${player.name} (${player.base_price})` });
@@ -188,21 +192,21 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   };
 
   const handlePlaceBid = async (forcedAmount?: number) => {
-    if (Date.now() - lastBidTime.current < 400) return;
-    if (auctionState.highest_bidder_id === user.id) { setErrorToast('You are already the highest bidder!'); return; }
+    if (Date.now() - lastBidTime.current < 400 || auctionState.status === 'PAUSED') return;
+    if (auctionState.highest_bidder_id === user?.id) { setErrorToast('You are already the highest bidder!'); return; }
     
     lastBidTime.current = Date.now();
     const amt = typeof forcedAmount === 'number' ? forcedAmount : Number(bidAmount);
     
-    if (amt <= auctionState.current_bid && auctionState.highest_bidder_id) { setErrorToast('Bid must be higher!'); return; }
+    if (amt <= auctionState.current_bid && auctionState.highest_bidder_id) { setErrorToast('Your bid must be higher!'); return; }
 
     try {
       await fetchWithAuth(`/rooms/${params.code}/bid`, { method: 'POST', body: JSON.stringify({ amount: amt, playerId: auctionState.current_player_id }) });
-      const newState = { ...auctionState, current_bid: amt, highest_bidder_id: user.id };
+      const newState = { ...auctionState, current_bid: amt, highest_bidder_id: user.id, status: 'IDLE' };
       setAuctionState(newState);
       channelRef.current?.send({ type: 'broadcast', event: 'new_bid', payload: { userId: user.id, amount: amt } });
       if (isAdmin) startAdminTimer(newState);
-    } catch (err: any) { setErrorToast(err.message); }
+    } catch (err: any) { setErrorToast(err.message || 'Bid Failed'); }
   };
 
   const handlePause = () => { if(!isAdmin) return; channelRef.current?.send({ type: 'broadcast', event: 'status_change', payload: { status: 'PAUSED' } }); if(timerIdRef.current) clearTimeout(timerIdRef.current); addBidduMessage('⏸️ Auction Paused'); };
@@ -210,7 +214,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const handleMarkUnsold = () => { if(!isAdmin) return; finalizePlayer({ ...auctionState, highest_bidder_id: null }); };
   
   const handleStartNextPlayer = () => {
-    if (!isAdmin) return;
+    if (!isAdmin || !availablePlayers) return;
     if (availablePlayers.length > 0) {
       handleStartAuction(availablePlayers[0].id);
     } else {
@@ -229,22 +233,22 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const currentPlayer = players?.find(p => p.id === auctionState.current_player_id);
   const availablePlayers = players ? players.filter(p => optionRoundActive ? soldEvents.find(s => s.playerId === p.id && s.isUnsold) : !soldEvents.find(s => s.playerId === p.id)) : [];
   const myMembership = leaderboard.find((r: any) => r.user.id === user?.id);
-  const myBoughtPlayers = players.filter(p => soldEvents.some(s => s.playerId === p.id && s.userId === user?.id && !s.isUnsold));
+  const myBoughtPlayers = players ? players.filter(p => soldEvents.some(s => s.playerId === p.id && s.userId === user?.id && !s.isUnsold)) : [];
   const mainPlayersRemaining = players ? players.filter(p => !soldEvents.find(s => s.playerId === p.id)).length : 0;
 
   useEffect(() => {
     let timer: any;
     if (isAdmin && isAutoMode && !auctionState.current_player_id && availablePlayers.length > 0) {
-      timer = setTimeout(() => handleStartAuction(availablePlayers[0].id), 2500);
+      timer = setTimeout(() => handleStartNextPlayer(), 2500);
     }
     return () => clearTimeout(timer);
-  }, [isAdmin, isAutoMode, auctionState.current_player_id]);
+  }, [isAdmin, isAutoMode, auctionState.current_player_id, availablePlayers.length]);
 
   if (!roomDetails || !user) return <div className="min-h-screen bg-[#0B1120] text-white flex flex-col items-center justify-center font-bold text-2xl gap-8 animate-pulse italic">Entering CricketBoli Arena...</div>;
 
   return (
     <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#0B1120] text-white font-sans p-4 md:p-6 lg:p-8 flex flex-col items-center">
-      {errorToast && <div className="fixed top-8 left-1/2 -translate-x-1/2 bg-red-600/90 text-white px-8 py-4 rounded-full z-50 flex items-center gap-3 animate-bounce border border-red-400 font-bold">{errorToast}</div>}
+      {errorToast && <div className="fixed top-8 left-1/2 -translate-x-1/2 bg-red-600/90 text-white px-8 py-4 rounded-full z-[200] flex items-center gap-3 animate-bounce border border-red-400 font-bold shadow-2xl">{errorToast}</div>}
       
       {/* Header */}
       <div className="w-full max-w-screen-2xl bg-slate-900/40 backdrop-blur-xl border border-white/5 px-8 h-20 flex items-center justify-between shrink-0 rounded-[32px] mb-6 shadow-2xl">
@@ -269,12 +273,12 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                  return (
                   <div key={member.user.id} className={`p-4 rounded-2xl border transition-all ${member.user.id === user?.id ? 'bg-indigo-500/10 border-indigo-500/40' : 'bg-slate-800/40 border-slate-700/50'}`}>
                     <div className="flex justify-between items-start mb-2">
-                       <p className="text-sm font-black text-white">{member.user.name}</p>
-                       <span className="text-[10px] bg-slate-950 font-bold text-slate-500 px-2 py-0.5 rounded border border-slate-800">{memberPlayers.length}/25</span>
+                       <p className="text-sm font-black text-white truncate pr-4">{member.user.name}</p>
+                       <span className="text-[10px] bg-slate-950 font-bold text-slate-500 px-2 py-0.5 rounded border border-slate-800 shrink-0">{memberPlayers.length}/25</span>
                     </div>
                     <p className="text-[11px] text-emerald-400 font-bold">{formatPrice(member.budget)}</p>
                     <div className="flex flex-wrap gap-1 mt-3">
-                      {memberPlayers.map(p => <span key={p.id} className="text-[8px] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700/50 text-slate-400 font-bold uppercase">{p.name.split(' ').pop()}</span>)}
+                      {memberPlayers.map(p => <span key={p.id} title={p.name} className="text-[8px] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700/50 text-slate-400 font-bold uppercase truncate max-w-[60px]">{p.name.split(' ').pop()}</span>)}
                     </div>
                   </div>
                  )
@@ -308,11 +312,11 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                   <div className="mt-4 px-6 py-2 bg-slate-800/80 rounded-full border border-slate-700 text-slate-400 font-bold text-sm">Base Price: {currentPlayer.base_price}</div>
                 </div>
 
-                <div className={`w-full max-w-xl bg-slate-950/90 rounded-[32px] p-8 border ${auctionState.highest_bidder_id === user.id ? 'border-amber-500/60 shadow-[0_0_50px_rgba(245,158,11,0.2)]' : 'border-slate-800'}`}>
+                <div className={`w-full max-w-xl bg-slate-950/90 rounded-[32px] p-8 border ${auctionState.highest_bidder_id === user?.id ? 'border-amber-500/60 shadow-[0_0_50px_rgba(245,158,11,0.2)]' : 'border-slate-800'}`}>
                    {auctionState.status === 'PAUSED' ? (
-                     <div className="flex justify-center mb-4"><span className="bg-amber-500/20 text-amber-500 px-6 py-1.5 rounded-full font-black text-[10px] tracking-widest border border-amber-500/40 animate-pulse">AUCTION PAUSED</span></div>
+                     <div className="flex justify-center mb-4"><span className="bg-amber-500/20 text-amber-500 px-6 py-1.5 rounded-full font-black text-[10px] tracking-widest border border-amber-500/40 animate-pulse uppercase">AUCTION PAUSED</span></div>
                    ) : (
-                    <div className="flex justify-center mb-4"><span className={`px-6 py-1.5 rounded-full font-black text-[10px] tracking-widest border ${['ONCE','TWICE','THRICE'].includes(auctionState.status) ? 'bg-red-500/20 text-red-400 border-red-500/30 animate-bounce' : 'bg-blue-500/20 text-blue-400 border-blue-500/30'}`}>{auctionState.status}</span></div>
+                    <div className="flex justify-center mb-4"><span className={`px-6 py-1.5 rounded-full font-black text-[10px] tracking-widest border uppercase ${['ONCE','TWICE','THRICE'].includes(auctionState.status) ? 'bg-red-500/20 text-red-400 border-red-500/30 animate-bounce' : 'bg-blue-500/20 text-blue-400 border-blue-500/30'}`}>{auctionState.status === 'IDLE' ? 'LIVE NOW' : `GOING ${auctionState.status}`}</span></div>
                    )}
                    <p className="text-[11px] text-amber-500/80 mb-2 uppercase tracking-[0.3em] font-black">Current Price</p>
                    <p className="text-6xl lg:text-8xl font-black text-amber-400 mb-6 drop-shadow-[0_0_20px_rgba(251,191,36,0.2)]">{formatPrice(auctionState.current_bid)}</p>
@@ -353,24 +357,28 @@ export default function RoomPage({ params }: { params: { code: string } }) {
           {/* Admin Power Panel */}
           {isAdmin && (
             <div className="bg-slate-900/60 rounded-[32px] p-6 border border-emerald-500/20 shadow-2xl shrink-0">
-               <h3 className="text-emerald-400 font-black mb-4 uppercase tracking-widest text-[10px] flex items-center gap-2 italic">Admin Panel 🕹️</h3>
+               <div className="flex justify-between items-center mb-4">
+                 <h3 className="text-emerald-400 font-black uppercase tracking-widest text-[10px] italic">Admin Panel 🕹️</h3>
+                 {isAutoMode && <span className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-[8px] font-black animate-pulse border border-blue-500/30 uppercase tracking-tighter shadow-lg shadow-blue-500/10 shrink-0">Bot Playing...</span>}
+               </div>
+
                <div className="space-y-4">
                  <div className="flex gap-2">
-                    <button onClick={handleStartNextPlayer} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-5 rounded-2xl font-black transition-all flex items-center justify-center gap-2 group">NEXT <ChevronRight className="w-5 h-5 group-hover:translate-x-1" /></button>
+                    <button onClick={handleStartNextPlayer} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-5 rounded-2xl font-black transition-all flex items-center justify-center gap-2 group shadow-xl shadow-emerald-900/10">NEXT <ChevronRight className="w-5 h-5 group-hover:translate-x-1" /></button>
                     <button onClick={() => setIsAutoMode(!isAutoMode)} className={`px-4 rounded-2xl font-black border-2 transition-all ${isAutoMode ? 'bg-blue-600 border-blue-400 shadow-[0_0_20px_rgba(37,99,235,0.3)]' : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-white'}`}>AUTO</button>
                  </div>
                  
                  {currentPlayer && (
                    <div className="grid grid-cols-2 gap-2">
                       {auctionState.status !== 'PAUSED' ? (
-                        <button onClick={handlePause} className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-3 rounded-xl font-black text-[10px] tracking-widest"><Pause className="w-4 h-4 mx-auto mb-1" /> PAUSE</button>
-                      ) : <button onClick={handleResume} className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 py-3 rounded-xl font-black text-[10px] tracking-widest"><PlayCircle className="w-4 h-4 mx-auto mb-1" /> RESUME</button>}
-                      <button onClick={handleMarkUnsold} className="bg-rose-500/10 text-rose-500 border border-rose-500/20 py-3 rounded-xl font-black text-[10px] tracking-widest">MARK<br/>UNSOLD</button>
+                        <button onClick={handlePause} className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-3 rounded-xl font-black text-[10px] tracking-widest flex flex-col items-center justify-center gap-1"><Pause className="w-4 h-4" /> PAUSE</button>
+                      ) : <button onClick={handleResume} className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 py-3 rounded-xl font-black text-[10px] tracking-widest flex flex-col items-center justify-center gap-1"><PlayCircle className="w-4 h-4" /> RESUME</button>}
+                      <button onClick={handleMarkUnsold} className="bg-rose-500/10 text-rose-500 border border-rose-500/20 py-3 rounded-xl font-black text-[10px] tracking-widest flex flex-col items-center justify-center gap-1"><XCircle className="w-4 h-4" /> UNSOLD</button>
                    </div>
                  )}
 
                  {mainPlayersRemaining === 0 && !optionRoundActive && (
-                   <button onClick={() => setOptionRoundActive(true)} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 py-4 rounded-xl font-black animate-bounce shadow-xl">START OPTION ROUND</button>
+                   <button onClick={() => setOptionRoundActive(true)} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 py-4 rounded-xl font-black animate-bounce shadow-xl uppercase text-xs tracking-tighter">START OPTION ROUND</button>
                  )}
                </div>
             </div>
@@ -382,15 +390,15 @@ export default function RoomPage({ params }: { params: { code: string } }) {
              <div className="grid grid-cols-3 gap-2 mb-4">
                 <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/50 text-center"><p className="text-[8px] text-slate-500 font-black uppercase mb-1 leading-none">Total</p><p className="text-xl font-black leading-none">{myBoughtPlayers.length}</p></div>
                 <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/50 text-center"><p className="text-[8px] text-slate-500 font-black uppercase mb-1 leading-none">Limit</p><p className="text-xl font-black leading-none">{25 - myBoughtPlayers.length}</p></div>
-                <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/50 text-center"><p className="text-[8px] text-slate-500 font-black uppercase mb-1 leading-none">OS</p><p className="text-xl font-black leading-none">{10 - (myBoughtPlayers.filter(p=>p.nationality_type?.toLowerCase()==='overseas').length)}</p></div>
+                <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/50 text-center"><p className="text-[8px] text-slate-500 font-black uppercase mb-1 leading-none">OS</p><p className="text-xl font-black leading-none">{Math.max(0, 10 - (myBoughtPlayers.filter(p=>p.nationality_type?.toLowerCase()==='overseas').length))}</p></div>
              </div>
              <div className="max-h-32 overflow-y-auto custom-scrollbar pr-1 space-y-1.5 min-h-[50px]">
-                {myBoughtPlayers.map(p => (
+                {myBoughtPlayers.length > 0 ? myBoughtPlayers.map(p => (
                   <div key={p.id} className="flex justify-between items-center py-2 px-3 bg-slate-800/20 rounded-lg border border-slate-700/30 group hover:border-indigo-500/30">
                     <span className="text-[10px] font-bold text-slate-300 group-hover:text-white truncate pr-2">{p.name}</span>
                     <span className="text-[8px] font-black text-indigo-500 uppercase px-1.5 py-0.5 bg-indigo-500/10 rounded-md border border-indigo-500/20">{p.role?.split(' ')[0] || 'PLR'}</span>
                   </div>
-                ))}
+                )) : <div className="text-[10px] text-slate-700 font-bold italic py-4 text-center ">Empty squad...</div>}
              </div>
           </div>
 
@@ -402,8 +410,8 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                  const p = players.find(x => x.id === ev.playerId);
                  return (
                    <div key={i} className="bg-slate-800/40 p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center group">
-                      <div className="truncate pr-2"><p className="text-xs font-black text-slate-200 truncate">{p?.name}</p><p className="text-[9px] text-slate-600 truncate uppercase mt-0.5">{ev.userId ? leaderboard.find(l => l.user.id === ev.userId)?.user.name : 'Unsold'}</p></div>
-                      <span className={`text-[10px] font-black px-3 py-1 rounded-lg border ${ev.amount > 0 ? 'text-amber-400 border-amber-400/20 bg-amber-400/5' : 'text-slate-600 border-slate-800'}`}>{ev.amount > 0 ? formatPrice(ev.amount) : 'UNSOLD'}</span>
+                      <div className="truncate pr-2"><p className="text-xs font-black text-slate-200 truncate">{p?.name || 'Someone'}</p><p className="text-[9px] text-slate-600 truncate uppercase mt-0.5">{ev.userId ? (leaderboard.find(l => String(l.user.id) === String(ev.userId))?.user.name || 'Competitor') : 'Unsold'}</p></div>
+                      <span className={`text-[10px] font-black px-3 py-1 rounded-lg border shrink-0 ${ev.amount > 0 ? 'text-amber-400 border-amber-400/20 bg-amber-400/5' : 'text-slate-600 border-slate-800'}`}>{ev.amount > 0 ? formatPrice(ev.amount) : 'UNSOLD'}</span>
                    </div>
                  );
                }) : <div className="h-full flex flex-col items-center justify-center opacity-30 italic text-xs">Waiting for sales...</div>}
