@@ -49,7 +49,7 @@ export default function Home() {
       router.push('/login');
     } else {
       setUser(JSON.parse(userData));
-      fetchWithAuth('/rooms/mine').then(data => {
+      fetchWithAuth('/rooms/my').then(data => {
         setMyRooms(data);
       }).catch(err => {
         console.error('Failed to load rooms:', err);
@@ -79,7 +79,7 @@ export default function Home() {
     try {
       if (!newRoomCode.trim() || !createPassword.trim()) return setError('Enter code and password');
       playClick();
-      const data = await fetchWithAuth('/rooms', {
+      const data = await fetchWithAuth('/rooms/create', {
         method: 'POST',
         body: JSON.stringify({ code: newRoomCode.trim(), password: createPassword.trim() }),
       });
