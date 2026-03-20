@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { fetchWithAuth } from '@/lib/api';
-import { Trophy, History, Users, Wallet, AlertCircle, Megaphone, CheckCircle2, Play, Pause, ChevronRight, Calculator, User, PlayCircle, XCircle } from 'lucide-react';
+import { History, Users, Wallet, Megaphone, CheckCircle2, Pause, ChevronRight, User, PlayCircle, XCircle, Zap, Shield } from 'lucide-react';
 
 export default function RoomPage({ params }: { params: { code: string } }) {
   const router = useRouter();
@@ -19,32 +19,22 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const [optionRoundActive, setOptionRoundActive] = useState(false);
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [bidCooldown, setBidCooldown] = useState(false);
+  const [adminOnline, setAdminOnline] = useState(true);
 
   const channelRef = useRef<any>(null);
   const timerIdRef = useRef<NodeJS.Timeout | null>(null);
-
-  // ============================================================
-  // FIX #1 & #2: useRef for LIVE auction state
-  // React state is async. Timer closures capture stale values.
-  // This ref is ALWAYS up-to-date, so the timer reads fresh data.
-  // ============================================================
   const liveAuctionRef = useRef({ current_player_id: null as number | null, current_bid: 0, highest_bidder_id: null as string | null });
   const isAdminRef = useRef(false);
   const leaderboardRef = useRef<any[]>([]);
+  const feedIndexRef = useRef(0); // Track insertion order for feed
 
-  // Keep refs in sync with state
+  // Keep refs in sync
   useEffect(() => { liveAuctionRef.current = { current_player_id: auctionState.current_player_id, current_bid: auctionState.current_bid, highest_bidder_id: auctionState.highest_bidder_id }; }, [auctionState]);
   useEffect(() => { isAdminRef.current = String(roomDetails?.admin_id) === String(user?.id); }, [roomDetails, user]);
   useEffect(() => { leaderboardRef.current = leaderboard; }, [leaderboard]);
 
-  // ============================================================
-  // FIX #4: Auto-dismiss error toast after 3 seconds
-  // ============================================================
-  useEffect(() => {
-    if (!errorToast) return;
-    const t = setTimeout(() => setErrorToast(''), 3000);
-    return () => clearTimeout(t);
-  }, [errorToast]);
+  // Auto-dismiss error toast
+  useEffect(() => { if (!errorToast) return; const t = setTimeout(() => setErrorToast(''), 3000); return () => clearTimeout(t); }, [errorToast]);
 
   // Sound Effects
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -70,9 +60,12 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       setRoomDetails(details);
       setLeaderboard(lead);
       setPlayers(allPlayers || []);
+      // Build feed in order: rosters first (sold), then unsold — each gets a sequential index
       const rebuiltEvents: any[] = [];
-      if (details.rosters) details.rosters.forEach((r: any) => rebuiltEvents.push({ playerId: r.player_id, userId: r.user_id, amount: r.bought_for, isUnsold: false }));
-      if (details.unsold) details.unsold.forEach((u: any) => rebuiltEvents.push({ playerId: u.player_id, amount: 0, isUnsold: true }));
+      let idx = 0;
+      if (details.rosters) details.rosters.forEach((r: any) => { rebuiltEvents.push({ playerId: r.player_id, userId: r.user_id, amount: r.bought_for, isUnsold: false, feedOrder: idx++ }); });
+      if (details.unsold) details.unsold.forEach((u: any) => { rebuiltEvents.push({ playerId: u.player_id, amount: 0, isUnsold: true, feedOrder: idx++ }); });
+      feedIndexRef.current = idx;
       setSoldEvents(rebuiltEvents);
     } catch (err: any) { setErrorToast('Re-syncing with Arena Servers...'); }
   };
@@ -81,55 +74,37 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     channelRef.current?.send({ type: 'broadcast', event: 'auction_update', payload: newState });
   };
 
-  // ============================================================
-  // FIX #1: Timer reads from liveAuctionRef (always fresh)
-  // When it fires finalizePlayer, it reads the LATEST bid info.
-  // ============================================================
   const startAdminTimer = useCallback(() => {
     if (timerIdRef.current) clearTimeout(timerIdRef.current);
     if (!isAdminRef.current) return;
-
-    // Broadcast current state as IDLE (timer reset)
     const currentLive = liveAuctionRef.current;
     const idleState = { ...currentLive, status: 'IDLE' };
     setAuctionState(idleState);
     sendRoomUpdate(idleState);
 
-    // 7s -> ONCE
     timerIdRef.current = setTimeout(() => {
       const live1 = liveAuctionRef.current;
-      const onceState = { ...live1, status: 'ONCE' };
-      setAuctionState(onceState);
-      sendRoomUpdate(onceState);
+      setAuctionState({ ...live1, status: 'ONCE' }); sendRoomUpdate({ ...live1, status: 'ONCE' });
       channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '🏮 Going ONCE!' });
 
-      // 2s -> TWICE
       timerIdRef.current = setTimeout(() => {
         const live2 = liveAuctionRef.current;
-        const twiceState = { ...live2, status: 'TWICE' };
-        setAuctionState(twiceState);
-        sendRoomUpdate(twiceState);
+        setAuctionState({ ...live2, status: 'TWICE' }); sendRoomUpdate({ ...live2, status: 'TWICE' });
         channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '💡 Going TWICE!' });
 
-        // 2s -> THRICE
         timerIdRef.current = setTimeout(() => {
           const live3 = liveAuctionRef.current;
-          const thriceState = { ...live3, status: 'THRICE' };
-          setAuctionState(thriceState);
-          sendRoomUpdate(thriceState);
-          channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '🔨 Last call! Going THRICE!' });
+          setAuctionState({ ...live3, status: 'THRICE' }); sendRoomUpdate({ ...live3, status: 'THRICE' });
+          channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '🔨 Going THRICE!' });
 
-          // 3s -> FINALIZE (reads LATEST ref)
           timerIdRef.current = setTimeout(() => {
-            const finalLive = liveAuctionRef.current;
-            finalizePlayerFromRef(finalLive);
+            finalizePlayerFromRef(liveAuctionRef.current);
           }, 3000);
         }, 2000);
       }, 2000);
     }, 7000);
   }, []);
 
-  // Finalize using ref data (always fresh)
   const finalizePlayerFromRef = async (live: { current_player_id: number | null, current_bid: number, highest_bidder_id: string | null }) => {
     if (!isAdminRef.current || !live.current_player_id) return;
     try {
@@ -145,14 +120,13 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       }
       const resetState = { current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' };
       liveAuctionRef.current = { current_player_id: null, current_bid: 0, highest_bidder_id: null };
-      setAuctionState(resetState);
-      sendRoomUpdate(resetState);
+      setAuctionState(resetState); sendRoomUpdate(resetState);
       initRoom();
     } catch (e) { setErrorToast('Finalization Failed. Retrying...'); }
   };
 
   // ============================================================
-  // Channel setup — FIX: admin restarts timer on ANY new_bid
+  // Channel + Presence (admin leave = auto-pause)
   // ============================================================
   useEffect(() => {
     const userDataStr = localStorage.getItem('user');
@@ -161,7 +135,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     setUser(userData);
     initRoom();
 
-    const channel = supabase.channel(`room_${params.code}`, { config: { broadcast: { self: true } } });
+    const channel = supabase.channel(`room_${params.code}`, { config: { broadcast: { self: true }, presence: { key: userData.id } } });
     channelRef.current = channel;
 
     channel
@@ -173,21 +147,15 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       })
       .on('broadcast', { event: 'biddu_msg' }, ({ payload }) => addBidduMessage(payload))
       .on('broadcast', { event: 'new_bid' }, ({ payload }) => {
-        // Update BOTH React state AND the live ref
         liveAuctionRef.current = { ...liveAuctionRef.current, current_bid: payload.amount, highest_bidder_id: payload.userId };
         setAuctionState((prev: any) => ({ ...prev, current_bid: payload.amount, highest_bidder_id: payload.userId, status: 'IDLE' }));
-        
         const bidderName = leaderboardRef.current.find(l => String(l.user.id) === String(payload.userId))?.user.name || 'Competitor';
         addBidduMessage(`🚀 ${bidderName} bids ${formatPrice(payload.amount)}`);
         playSfx('bid');
-
-        // *** THE KEY FIX: Admin restarts timer when ANYONE bids ***
-        if (isAdminRef.current) {
-          startAdminTimer();
-        }
+        if (isAdminRef.current) startAdminTimer();
       })
       .on('broadcast', { event: 'player_sold' }, ({ payload }) => {
-        setSoldEvents(prev => [...prev, payload]);
+        setSoldEvents(prev => [...prev, { ...payload, isUnsold: false, feedOrder: feedIndexRef.current++ }]);
         liveAuctionRef.current = { current_player_id: null, current_bid: 0, highest_bidder_id: null };
         setAuctionState({ current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' });
         playSfx('sold');
@@ -195,15 +163,39 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       })
       .on('broadcast', { event: 'status_change' }, ({ payload }) => {
         setAuctionState((prev: any) => ({ ...prev, status: payload.status }));
+        if (payload.status === 'PAUSED' && payload.reason === 'admin_left') {
+          addBidduMessage('🚨 Auctioneer left! Auction auto-paused.');
+        }
       })
       .on('broadcast', { event: 'player_unsold' }, ({ payload }) => {
-        setSoldEvents(prev => [...prev, { playerId: payload.playerId, amount: 0, isUnsold: true }]);
+        setSoldEvents(prev => [...prev, { playerId: payload.playerId, amount: 0, isUnsold: true, feedOrder: feedIndexRef.current++ }]);
         liveAuctionRef.current = { current_player_id: null, current_bid: 0, highest_bidder_id: null };
         setAuctionState({ current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' });
       })
-      .subscribe();
+      .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+        // When admin disconnects, auto-pause
+        // Check if any left presence is the admin
+        // We'll broadcast an admin_left event from admin's own beforeunload
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ user_id: userData.id, name: userData.name, is_admin: false }); // will be updated after roomDetails loads
+        }
+      });
 
-    return () => { channel.unsubscribe(); if (timerIdRef.current) clearTimeout(timerIdRef.current); };
+    // Admin leave detection: when this browser tab closes, if we're admin, pause the auction
+    const handleBeforeUnload = () => {
+      if (isAdminRef.current && liveAuctionRef.current.current_player_id) {
+        channelRef.current?.send({ type: 'broadcast', event: 'status_change', payload: { status: 'PAUSED', reason: 'admin_left' } });
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      channel.unsubscribe();
+      if (timerIdRef.current) clearTimeout(timerIdRef.current);
+    };
   }, [params.code]);
 
   const handleStartAuction = (playerId: number) => {
@@ -214,48 +206,29 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     let num = parseFloat(baseStr.replace(/[^0-9.]/g, '')) || 0;
     let actualBase = baseStr.includes('cr') ? Math.round(num * 10000000) : (baseStr.includes('l') ? Math.round(num * 100000) : num);
     
-    // Set ref FIRST, then state
     liveAuctionRef.current = { current_player_id: playerId, current_bid: actualBase, highest_bidder_id: null };
     const newState = { current_player_id: playerId, current_bid: actualBase, highest_bidder_id: null, status: 'IDLE' };
-    setAuctionState(newState);
-    sendRoomUpdate(newState);
-    channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: `⚡ UP NEXT: ${player.name} (${player.base_price})` });
+    setAuctionState(newState); sendRoomUpdate(newState);
+    channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: `⚡ ${player.name} — ${player.role} — Base: ${player.base_price}` });
     startAdminTimer();
     playSfx('click');
   };
 
-  // ============================================================
-  // FIX #3: 2.5s cooldown + no consecutive self-bids
-  // ============================================================
   const handlePlaceBid = async (forcedAmount?: number) => {
     if (bidCooldown || auctionState.status === 'PAUSED') return;
-
-    // Block self-consecutive bids
-    if (String(auctionState.highest_bidder_id) === String(user?.id)) {
-      setErrorToast('You are already the highest bidder! Wait for someone else.');
-      return;
-    }
+    if (String(auctionState.highest_bidder_id) === String(user?.id)) { setErrorToast('You are already the highest bidder!'); return; }
     
-    const currentBid = liveAuctionRef.current.current_bid; // Read from ref for accuracy
+    const currentBid = liveAuctionRef.current.current_bid;
     const amt = typeof forcedAmount === 'number' ? forcedAmount : 0;
-    
-    if (amt <= currentBid && liveAuctionRef.current.highest_bidder_id) {
-      setErrorToast('Your bid must be higher!');
-      return;
-    }
+    if (amt <= currentBid && liveAuctionRef.current.highest_bidder_id) { setErrorToast('Your bid must be higher!'); return; }
 
-    // Start 2.5s cooldown
     setBidCooldown(true);
     setTimeout(() => setBidCooldown(false), 2500);
 
     try {
       await fetchWithAuth(`/rooms/${params.code}/bid`, { method: 'POST', body: JSON.stringify({ amount: amt, playerId: auctionState.current_player_id }) });
-      
-      // Update ref FIRST
       liveAuctionRef.current = { ...liveAuctionRef.current, current_bid: amt, highest_bidder_id: user.id };
       setAuctionState((prev: any) => ({ ...prev, current_bid: amt, highest_bidder_id: user.id, status: 'IDLE' }));
-      
-      // Broadcast — admin's handler will restart the timer
       channelRef.current?.send({ type: 'broadcast', event: 'new_bid', payload: { userId: user.id, amount: amt } });
     } catch (err: any) { setErrorToast(err.message || 'Bid Failed'); }
   };
@@ -263,12 +236,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const handlePause = () => { if (!isAdminRef.current) return; channelRef.current?.send({ type: 'broadcast', event: 'status_change', payload: { status: 'PAUSED' } }); if (timerIdRef.current) clearTimeout(timerIdRef.current); addBidduMessage('⏸️ Auction Paused'); };
   const handleResume = () => { if (!isAdminRef.current) return; startAdminTimer(); addBidduMessage('▶️ Auction Resumed'); };
   const handleMarkUnsold = () => { if (!isAdminRef.current) return; liveAuctionRef.current = { ...liveAuctionRef.current, highest_bidder_id: null }; finalizePlayerFromRef({ ...liveAuctionRef.current, highest_bidder_id: null }); };
-  
-  const handleStartNextPlayer = () => {
-    if (!isAdminRef.current || !availablePlayers) return;
-    if (availablePlayers.length > 0) handleStartAuction(availablePlayers[0].id);
-    else setErrorToast('No more players available in this round!');
-  };
+  const handleStartNextPlayer = () => { if (!isAdminRef.current || !availablePlayers) return; if (availablePlayers.length > 0) handleStartAuction(availablePlayers[0].id); else setErrorToast('No more players!'); };
 
   const formatPrice = (amt: number) => {
     if (amt >= 10000000) return `₹${(amt / 10000000).toFixed(2)} Cr`;
@@ -276,13 +244,14 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     return `₹${amt}`;
   };
 
-  // Derived values
   const isAdmin = String(roomDetails?.admin_id) === String(user?.id);
   const currentPlayer = players?.find(p => p.id === auctionState.current_player_id);
   const availablePlayers = players ? players.filter(p => optionRoundActive ? soldEvents.find(s => s.playerId === p.id && s.isUnsold) : !soldEvents.find(s => s.playerId === p.id)) : [];
   const myMembership = leaderboard.find((r: any) => String(r.user.id) === String(user?.id));
   const myBoughtPlayers = players ? players.filter(p => soldEvents.some(s => s.playerId === p.id && String(s.userId) === String(user?.id) && !s.isUnsold)) : [];
   const mainPlayersRemaining = players ? players.filter(p => !soldEvents.find(s => s.playerId === p.id)).length : 0;
+  // Feed sorted by insertion order (most recent LAST in array = most recent on TOP in display)
+  const sortedFeed = [...soldEvents].sort((a, b) => (b.feedOrder ?? 0) - (a.feedOrder ?? 0));
 
   // Auto mode
   useEffect(() => {
@@ -293,191 +262,208 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     return () => clearTimeout(timer);
   }, [isAdmin, isAutoMode, auctionState.current_player_id, availablePlayers.length]);
 
-  if (!roomDetails || !user) return <div className="min-h-screen bg-[#0B1120] text-white flex flex-col items-center justify-center font-bold text-2xl gap-8 animate-pulse italic">Entering CricketBoli Arena...</div>;
+  if (!roomDetails || !user) return (
+    <div className="h-screen bg-[#060B18] text-white flex flex-col items-center justify-center gap-4">
+      <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <p className="text-lg font-bold tracking-wider text-slate-400 animate-pulse">Entering Arena...</p>
+    </div>
+  );
 
   return (
-    <div className="h-screen bg-[#0B1120] text-white font-sans p-3 md:p-4 lg:p-5 flex flex-col items-center overflow-hidden">
-      {errorToast && <div className="fixed top-8 left-1/2 -translate-x-1/2 bg-red-600/90 text-white px-8 py-4 rounded-full z-[200] flex items-center gap-3 border border-red-400 font-bold shadow-2xl animate-in zoom-in-95 duration-300">{errorToast}</div>}
+    <div className="h-screen bg-[#060B18] text-white font-sans flex flex-col overflow-hidden">
+      {errorToast && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-red-500/95 backdrop-blur-md text-white px-6 py-3 rounded-xl z-[200] font-bold text-sm shadow-2xl shadow-red-900/30 border border-red-400/40">{errorToast}</div>}
       
-      {/* Header */}
-      <div className="w-full max-w-screen-2xl bg-slate-900/40 backdrop-blur-xl border border-white/5 px-6 h-16 flex items-center justify-between shrink-0 rounded-2xl mb-3 shadow-2xl">
+      {/* ── Header ── */}
+      <div className="px-4 py-2 shrink-0">
+        <div className="max-w-screen-2xl mx-auto bg-[#0D1424]/80 backdrop-blur-xl border border-white/[0.06] px-5 h-14 flex items-center justify-between rounded-xl">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => router.push('/')}>
-            <div className="w-10 h-10 bg-slate-800 border border-white/10 rounded-xl p-0.5 shadow-2xl overflow-hidden"><img src="/logo.png" className="w-full h-full object-cover rounded-lg" /></div>
-            <div className="flex flex-col"><h1 className="text-2xl font-black italic tracking-tighter leading-none">CricketBoli</h1><span className="text-[9px] text-amber-500 font-bold uppercase tracking-[0.2em] mt-0.5 ml-1 leading-none">{params.code}</span></div>
+            <div className="w-9 h-9 bg-slate-800 border border-white/10 rounded-lg p-0.5 overflow-hidden"><img src="/logo.png" className="w-full h-full object-cover rounded-md" /></div>
+            <div><h1 className="text-xl font-black italic tracking-tighter leading-none">CricketBoli</h1><span className="text-[8px] text-amber-500 font-bold uppercase tracking-[0.2em] leading-none">{params.code}</span></div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 bg-indigo-500/10 px-4 py-2 rounded-xl border border-indigo-500/20">
-              <Megaphone className="w-4 h-4 text-indigo-400" /><div className="text-right"><p className="text-[9px] text-indigo-400/70 uppercase tracking-[0.15em] font-black">Players Left</p><p className="text-lg font-black text-indigo-300">{availablePlayers.length}</p></div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-indigo-500/8 px-3 py-1.5 rounded-lg border border-indigo-500/15">
+              <Zap className="w-3.5 h-3.5 text-indigo-400" />
+              <div className="text-right"><p className="text-[8px] text-indigo-400/60 uppercase tracking-wider font-black leading-none">Left</p><p className="text-base font-black text-indigo-300 leading-tight">{availablePlayers.length}</p></div>
             </div>
-            <div className="flex items-center gap-3 bg-slate-800/80 px-4 py-2 rounded-xl border border-white/5 shadow-2xl">
-              <Wallet className="w-4 h-4 text-emerald-400" /><div className="text-right"><p className="text-[9px] text-slate-500 uppercase tracking-[0.15em] font-black">My Budget</p><p className="text-lg font-black text-white">{formatPrice(myMembership?.budget || 0)}</p></div>
+            <div className="flex items-center gap-2 bg-white/[0.03] px-3 py-1.5 rounded-lg border border-white/[0.06]">
+              <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="text-right"><p className="text-[8px] text-slate-500 uppercase tracking-wider font-black leading-none">Budget</p><p className="text-base font-black text-white leading-tight">{formatPrice(myMembership?.budget || 0)}</p></div>
             </div>
           </div>
+        </div>
       </div>
 
-      <div className="w-full max-w-screen-2xl flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 relative z-10 min-h-0 overflow-hidden">
-        
-        {/* Left: Competitors */}
-        <div className="lg:col-span-3 flex flex-col gap-3 h-full min-h-0 order-2 lg:order-1">
-          <div className="bg-slate-900/60 rounded-[32px] p-6 border border-slate-700/50 shadow-2xl flex-1 flex flex-col min-h-0">
-             <h3 className="text-white font-black mb-6 uppercase tracking-widest text-[11px] flex items-center gap-2"><Users className="w-5 h-5 text-blue-400" /> Competitors</h3>
-             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1 pb-4">
-               {leaderboard.map((member) => {
-                 const memberPlayers = players.filter(p => soldEvents.some(s => s.playerId === p.id && String(s.userId) === String(member.user.id) && !s.isUnsold));
-                 return (
-                  <div key={member.user.id} className={`p-4 rounded-2xl border transition-all ${String(member.user.id) === String(user?.id) ? 'bg-indigo-500/10 border-indigo-500/40' : 'bg-slate-800/40 border-slate-700/50'}`}>
-                    <div className="flex justify-between items-start mb-2">
-                       <p className="text-sm font-black text-white truncate pr-4">{member.user.name}</p>
-                       <span className="text-[10px] bg-slate-950 font-bold text-slate-500 px-2 py-0.5 rounded border border-slate-800 shrink-0">{memberPlayers.length}/25</span>
+      {/* ── Main Grid ── */}
+      <div className="flex-1 min-h-0 px-4 pb-3">
+        <div className="max-w-screen-2xl mx-auto h-full grid grid-cols-1 lg:grid-cols-12 gap-2.5">
+          
+          {/* ─ Left: Competitors ─ */}
+          <div className="lg:col-span-3 flex flex-col h-full min-h-0 order-2 lg:order-1">
+            <div className="bg-[#0D1424]/70 rounded-xl p-4 border border-white/[0.04] flex-1 flex flex-col min-h-0">
+              <h3 className="text-[10px] text-slate-400 font-black mb-3 uppercase tracking-[0.15em] flex items-center gap-2"><Users className="w-4 h-4 text-blue-400" /> Competitors</h3>
+              <div className="space-y-2 overflow-y-auto pr-1 custom-scrollbar flex-1">
+                {leaderboard.map((member) => {
+                  const memberPlayers = players.filter(p => soldEvents.some(s => s.playerId === p.id && String(s.userId) === String(member.user.id) && !s.isUnsold));
+                  return (
+                    <div key={member.user.id} className={`p-3 rounded-lg border transition-all ${String(member.user.id) === String(user?.id) ? 'bg-indigo-500/8 border-indigo-500/25' : 'bg-white/[0.02] border-white/[0.04] hover:border-white/[0.08]'}`}>
+                      <div className="flex justify-between items-center mb-1">
+                        <p className="text-xs font-bold text-white truncate pr-2">{member.user.name}</p>
+                        <span className="text-[9px] bg-black/40 font-mono text-slate-500 px-1.5 py-0.5 rounded shrink-0">{memberPlayers.length}/25</span>
+                      </div>
+                      <p className="text-[10px] text-emerald-400/80 font-semibold">{formatPrice(member.budget)}</p>
+                      {memberPlayers.length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 mt-2">
+                          {memberPlayers.slice(0, 8).map(p => <span key={p.id} title={p.name} className="text-[7px] bg-white/[0.04] px-1 py-0.5 rounded text-slate-500 font-semibold truncate max-w-[55px]">{p.name.split(' ').pop()}</span>)}
+                          {memberPlayers.length > 8 && <span className="text-[7px] text-slate-600 font-bold px-1">+{memberPlayers.length - 8}</span>}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-[11px] text-emerald-400 font-bold">{formatPrice(member.budget)}</p>
-                    <div className="flex flex-wrap gap-1 mt-3">
-                      {memberPlayers.map(p => <span key={p.id} title={p.name} className="text-[8px] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-700/50 text-slate-400 font-bold uppercase truncate max-w-[60px]">{p.name.split(' ').pop()}</span>)}
-                    </div>
-                  </div>
-                 )
-               })}
-             </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Center: Arena */}
-        <div className="lg:col-span-6 flex flex-col gap-3 h-full min-h-0 order-1 lg:order-2">
-           {/* Bolibot Messages */}
-           <div className="bg-gradient-to-r from-blue-900/40 to-indigo-900/40 p-6 rounded-[32px] border border-blue-500/30 flex items-start gap-5 shadow-xl shrink-0">
-              <div className="w-16 h-16 bg-slate-900 rounded-2xl border-2 border-blue-400 p-1 flex-shrink-0 animate-pulse overflow-hidden"><img src="/logo.png" className="w-full h-full object-cover" /></div>
-              <div className="flex-1 min-w-0 h-[70px] overflow-y-auto custom-scrollbar flex flex-col justify-end">
-                {bidduMessages.map((msg) => (
-                  <div key={msg.id} className="text-xl font-black text-white animate-in slide-in-from-left-4 duration-300 mb-1">{msg.text}</div>
+          {/* ─ Center: Arena ─ */}
+          <div className="lg:col-span-6 flex flex-col gap-2.5 h-full min-h-0 order-1 lg:order-2">
+            
+            {/* Bolibot — SHARP */}
+            <div className="bg-[#0D1424] rounded-xl border border-cyan-500/20 flex items-center gap-3 px-4 py-3 shrink-0 shadow-[0_0_30px_-10px_rgba(34,211,238,0.15)]">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-400/30 flex items-center justify-center shrink-0">
+                <Shield className="w-5 h-5 text-cyan-400" />
+              </div>
+              <div className="flex-1 min-w-0 max-h-[52px] overflow-y-auto custom-scrollbar flex flex-col justify-end">
+                {bidduMessages.length === 0 ? (
+                  <p className="text-sm text-slate-500 italic">Bolibot ready...</p>
+                ) : bidduMessages.slice(-3).map((msg) => (
+                  <p key={msg.id} className="text-sm font-bold text-white/90 leading-snug animate-in slide-in-from-left-2 duration-200 truncate">{msg.text}</p>
                 ))}
               </div>
-           </div>
+              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0" />
+            </div>
 
-           {/* Main Display */}
-           <div className="bg-slate-900/60 rounded-[32px] p-6 flex-1 w-full flex flex-col items-center justify-center shadow-2xl relative overflow-hidden border border-slate-700/50">
-            {currentPlayer ? (
-              <div className="text-center w-full max-w-3xl flex flex-col items-center justify-between h-full py-4 animate-in zoom-in-95 duration-500">
-                <div>
-                  <div className="flex justify-center gap-3 mb-4">
-                    <span className="px-5 py-1.5 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-black uppercase tracking-widest border border-indigo-500/30">{currentPlayer.role}</span>
-                    <span className={`px-5 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border ${currentPlayer.nationality_type?.toLowerCase() === 'overseas' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'}`}>{currentPlayer.nationality_type}</span>
+            {/* Main Display */}
+            <div className="bg-[#0D1424]/70 rounded-xl flex-1 w-full flex flex-col items-center justify-center relative overflow-hidden border border-white/[0.04]">
+              {currentPlayer ? (
+                <div className="text-center w-full max-w-2xl flex flex-col items-center justify-between h-full py-3 px-4 animate-in zoom-in-95 duration-400">
+                  <div>
+                    <div className="flex justify-center gap-2 mb-2">
+                      <span className="px-3 py-1 bg-indigo-500/15 text-indigo-300 rounded-md text-[10px] font-bold uppercase tracking-wider border border-indigo-500/20">{currentPlayer.role}</span>
+                      <span className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${currentPlayer.nationality_type?.toLowerCase() === 'overseas' ? 'bg-rose-500/15 text-rose-300 border-rose-500/20' : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/20'}`}>{currentPlayer.nationality_type}</span>
+                    </div>
+                    <h2 className="text-4xl lg:text-5xl font-black text-white italic tracking-tight">{currentPlayer.name}</h2>
+                    <p className="mt-1 text-xs text-slate-500 font-semibold">Base: {currentPlayer.base_price}</p>
                   </div>
-                  <h2 className="text-5xl lg:text-7xl font-black text-white italic tracking-tighter drop-shadow-2xl">{currentPlayer.name}</h2>
-                  <div className="mt-4 px-6 py-2 bg-slate-800/80 rounded-full border border-slate-700 text-slate-400 font-bold text-sm">Base Price: {currentPlayer.base_price}</div>
-                </div>
 
-                <div className={`w-full max-w-xl bg-slate-950/90 rounded-[32px] p-8 border ${String(auctionState.highest_bidder_id) === String(user?.id) ? 'border-amber-500/60 shadow-[0_0_50px_rgba(245,158,11,0.2)]' : 'border-slate-800'}`}>
-                   {auctionState.status === 'PAUSED' ? (
-                     <div className="flex justify-center mb-4"><span className="bg-amber-500/20 text-amber-500 px-6 py-1.5 rounded-full font-black text-[10px] tracking-widest border border-amber-500/40 animate-pulse uppercase">AUCTION PAUSED</span></div>
-                   ) : (
-                    <div className="flex justify-center mb-4"><span className={`px-6 py-1.5 rounded-full font-black text-[10px] tracking-widest border uppercase ${['ONCE','TWICE','THRICE'].includes(auctionState.status) ? 'bg-red-500/20 text-red-400 border-red-500/30 animate-bounce' : 'bg-blue-500/20 text-blue-400 border-blue-500/30'}`}>{auctionState.status === 'IDLE' ? 'LIVE NOW' : `GOING ${auctionState.status}`}</span></div>
-                   )}
-                   <p className="text-[11px] text-amber-500/80 mb-2 uppercase tracking-[0.3em] font-black">Current Price</p>
-                   <p className="text-6xl lg:text-8xl font-black text-amber-400 mb-6 drop-shadow-[0_0_20px_rgba(251,191,36,0.2)]">{formatPrice(auctionState.current_bid)}</p>
-                   
-                   <div className="mb-8 min-h-[30px] flex justify-center">
-                    {auctionState.highest_bidder_id ? (
-                       <div className="flex items-center gap-3 px-5 py-2 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-                          <CheckCircle2 className="w-5 h-5 text-amber-400" />
-                          <span className="text-amber-300 font-bold text-sm">Bid by {leaderboard.find(l => String(l.user.id) === String(auctionState.highest_bidder_id))?.user.name || 'Competitor'}</span>
-                       </div>
-                    ) : <span className="text-slate-600 font-black uppercase text-[10px] tracking-widest italic">Awaiting open bid...</span>}
-                   </div>
-                   
-                   <div className="grid grid-cols-5 gap-3">
+                  <div className={`w-full max-w-lg bg-black/50 rounded-xl p-5 border ${String(auctionState.highest_bidder_id) === String(user?.id) ? 'border-amber-500/40 shadow-[0_0_40px_-10px_rgba(245,158,11,0.2)]' : 'border-white/[0.06]'}`}>
+                    <div className="flex justify-center mb-2">
+                      {auctionState.status === 'PAUSED' ? (
+                        <span className="bg-amber-500/15 text-amber-400 px-4 py-1 rounded-md font-bold text-[9px] tracking-widest border border-amber-500/20 animate-pulse uppercase">PAUSED</span>
+                      ) : (
+                        <span className={`px-4 py-1 rounded-md font-bold text-[9px] tracking-widest border uppercase ${['ONCE','TWICE','THRICE'].includes(auctionState.status) ? 'bg-red-500/15 text-red-400 border-red-500/20 animate-bounce' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'}`}>{auctionState.status === 'IDLE' ? '● LIVE' : `GOING ${auctionState.status}`}</span>
+                      )}
+                    </div>
+                    <p className="text-[9px] text-amber-500/60 mb-1 uppercase tracking-[0.25em] font-bold">Current Price</p>
+                    <p className="text-5xl lg:text-6xl font-black text-amber-400 mb-3 leading-none">{formatPrice(auctionState.current_bid)}</p>
+                    
+                    <div className="mb-4 min-h-[24px] flex justify-center">
+                      {auctionState.highest_bidder_id ? (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/8 rounded-lg border border-amber-500/15">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="text-amber-300 font-semibold text-xs">{leaderboard.find(l => String(l.user.id) === String(auctionState.highest_bidder_id))?.user.name || 'Competitor'}</span>
+                        </div>
+                      ) : <span className="text-slate-600 font-bold text-[9px] tracking-widest italic uppercase">Awaiting bid...</span>}
+                    </div>
+                    
+                    <div className="grid grid-cols-5 gap-1.5">
                       {[10, 30, 50, 75, 100].map((v) => (
                         <button 
-                          key={v} 
-                          onClick={() => handlePlaceBid(liveAuctionRef.current.current_bid + (v * 100000))} 
+                          key={v} onClick={() => handlePlaceBid(liveAuctionRef.current.current_bid + (v * 100000))} 
                           disabled={auctionState.status === 'PAUSED' || bidCooldown}
-                          className={`group bg-slate-900 border-2 border-slate-800 hover:border-amber-400 text-white hover:text-amber-400 rounded-2xl py-5 font-black text-[10px] transition-all hover:-translate-y-1 active:scale-95 disabled:opacity-30 shadow-inner ${bidCooldown ? 'cursor-not-allowed' : ''}`}
-                        >
-                          <span className="text-[8px] text-slate-500 group-hover:text-amber-500/60 block leading-none mb-1">+</span>{v}L
-                        </button>
+                          className={`bg-white/[0.03] border border-white/[0.06] hover:border-amber-400/50 hover:bg-amber-400/5 text-white hover:text-amber-400 rounded-lg py-3 font-bold text-[10px] transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed`}
+                        ><span className="text-[7px] text-slate-600 block leading-none mb-0.5">+</span>{v}L</button>
                       ))}
-                   </div>
-                   
-                   {/* Open bid button — only if no one has bid yet */}
-                   {!auctionState.highest_bidder_id && !bidCooldown && auctionState.status !== 'PAUSED' && (
-                     <button onClick={() => handlePlaceBid(liveAuctionRef.current.current_bid)} className="w-full mt-4 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl transition-all shadow-lg shadow-emerald-900/20">OPEN BID AT BASE</button>
-                   )}
-                   
-                   {/* Cooldown indicator */}
-                   {bidCooldown && (
-                     <div className="mt-4 text-center text-amber-500/60 text-[10px] font-black uppercase tracking-widest animate-pulse">⏳ Bid cooldown (2.5s)...</div>
-                   )}
+                    </div>
+                    {!auctionState.highest_bidder_id && !bidCooldown && auctionState.status !== 'PAUSED' && (
+                      <button onClick={() => handlePlaceBid(liveAuctionRef.current.current_bid)} className="w-full mt-2 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-all text-sm">OPEN BID AT BASE</button>
+                    )}
+                    {bidCooldown && <p className="mt-2 text-center text-amber-500/40 text-[9px] font-bold uppercase tracking-wider animate-pulse">⏳ Cooldown 2.5s</p>}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center opacity-30 flex flex-col items-center gap-3"><Megaphone className="w-14 h-14 text-slate-600" /><p className="text-2xl font-black tracking-tight">WAITING FOR NEXT PLAYER</p></div>
+              )}
+            </div>
+          </div>
+
+          {/* ─ Right: Controls & Feed ─ */}
+          <div className="lg:col-span-3 flex flex-col gap-2.5 h-full min-h-0 order-3">
+            
+            {/* Admin Panel */}
+            {isAdmin && (
+              <div className="bg-[#0D1424]/70 rounded-xl p-4 border border-emerald-500/15 shrink-0">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.15em]">Admin 🕹️</h3>
+                  {isAutoMode && <span className="bg-blue-500/15 text-blue-400 px-2 py-0.5 rounded text-[8px] font-bold animate-pulse border border-blue-500/20 uppercase">Auto</span>}
+                </div>
+                <div className="space-y-2">
+                  <div className="flex gap-1.5">
+                    <button onClick={handleStartNextPlayer} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-1.5">NEXT <ChevronRight className="w-4 h-4" /></button>
+                    <button onClick={() => setIsAutoMode(!isAutoMode)} className={`px-3 rounded-lg font-bold text-sm border transition-all ${isAutoMode ? 'bg-blue-600 border-blue-400 text-white' : 'bg-white/[0.03] border-white/[0.06] text-slate-500 hover:text-white'}`}>AUTO</button>
+                  </div>
+                  {currentPlayer && (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {auctionState.status !== 'PAUSED' ? (
+                        <button onClick={handlePause} className="bg-amber-500/8 text-amber-500 border border-amber-500/15 py-2 rounded-lg font-bold text-[9px] tracking-wider flex items-center justify-center gap-1"><Pause className="w-3 h-3" /> PAUSE</button>
+                      ) : <button onClick={handleResume} className="bg-indigo-500/8 text-indigo-400 border border-indigo-500/15 py-2 rounded-lg font-bold text-[9px] tracking-wider flex items-center justify-center gap-1"><PlayCircle className="w-3 h-3" /> RESUME</button>}
+                      <button onClick={handleMarkUnsold} className="bg-rose-500/8 text-rose-400 border border-rose-500/15 py-2 rounded-lg font-bold text-[9px] tracking-wider flex items-center justify-center gap-1"><XCircle className="w-3 h-3" /> UNSOLD</button>
+                    </div>
+                  )}
+                  {mainPlayersRemaining === 0 && !optionRoundActive && (
+                    <button onClick={() => setOptionRoundActive(true)} className="w-full bg-amber-500 hover:bg-amber-400 text-black py-2.5 rounded-lg font-bold text-xs uppercase animate-pulse">Option Round</button>
+                  )}
                 </div>
               </div>
-            ) : (
-                <div className="text-center opacity-40 animate-pulse flex flex-col items-center gap-6"><Megaphone className="w-20 h-20 text-slate-600" /><p className="text-4xl font-black tracking-tighter">WAITING FOR NEXT PLAYER</p></div>
             )}
-           </div>
-        </div>
 
-        {/* Right: Controls & Feed */}
-        <div className="lg:col-span-3 flex flex-col gap-3 h-full min-h-0 order-3">
-          
-          {/* Admin Panel */}
-          {isAdmin && (
-            <div className="bg-slate-900/60 rounded-[32px] p-6 border border-emerald-500/20 shadow-2xl shrink-0">
-               <div className="flex justify-between items-center mb-4">
-                 <h3 className="text-emerald-400 font-black uppercase tracking-widest text-[10px] italic">Admin Panel 🕹️</h3>
-                 {isAutoMode && <span className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-[8px] font-black animate-pulse border border-blue-500/30 uppercase tracking-tighter shadow-lg shadow-blue-500/10 shrink-0">Bot Playing...</span>}
-               </div>
-               <div className="space-y-4">
-                 <div className="flex gap-2">
-                    <button onClick={handleStartNextPlayer} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-5 rounded-2xl font-black transition-all flex items-center justify-center gap-2 group shadow-xl shadow-emerald-900/10">NEXT <ChevronRight className="w-5 h-5 group-hover:translate-x-1" /></button>
-                    <button onClick={() => setIsAutoMode(!isAutoMode)} className={`px-4 rounded-2xl font-black border-2 transition-all ${isAutoMode ? 'bg-blue-600 border-blue-400 shadow-[0_0_20px_rgba(37,99,235,0.3)]' : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-white'}`}>AUTO</button>
-                 </div>
-                 {currentPlayer && (
-                   <div className="grid grid-cols-2 gap-2">
-                      {auctionState.status !== 'PAUSED' ? (
-                        <button onClick={handlePause} className="bg-amber-500/10 text-amber-500 border border-amber-500/20 py-3 rounded-xl font-black text-[10px] tracking-widest flex flex-col items-center justify-center gap-1"><Pause className="w-4 h-4" /> PAUSE</button>
-                      ) : <button onClick={handleResume} className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 py-3 rounded-xl font-black text-[10px] tracking-widest flex flex-col items-center justify-center gap-1"><PlayCircle className="w-4 h-4" /> RESUME</button>}
-                      <button onClick={handleMarkUnsold} className="bg-rose-500/10 text-rose-500 border border-rose-500/20 py-3 rounded-xl font-black text-[10px] tracking-widest flex flex-col items-center justify-center gap-1"><XCircle className="w-4 h-4" /> UNSOLD</button>
-                   </div>
-                 )}
-                 {mainPlayersRemaining === 0 && !optionRoundActive && (
-                   <button onClick={() => setOptionRoundActive(true)} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 py-4 rounded-xl font-black animate-bounce shadow-xl uppercase text-xs tracking-tighter">START OPTION ROUND</button>
-                 )}
-               </div>
-            </div>
-          )}
-
-          {/* My Roster */}
-          <div className="bg-slate-900/60 rounded-[32px] p-6 border border-indigo-500/20 shadow-xl shrink-0">
-             <h3 className="text-indigo-400 font-black mb-4 uppercase tracking-widest text-[10px] flex items-center gap-2"><User className="w-4 h-4" /> My Roster</h3>
-             <div className="grid grid-cols-3 gap-2 mb-4">
-                <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/50 text-center"><p className="text-[8px] text-slate-500 font-black uppercase mb-1 leading-none">Total</p><p className="text-xl font-black leading-none">{myBoughtPlayers.length}</p></div>
-                <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/50 text-center"><p className="text-[8px] text-slate-500 font-black uppercase mb-1 leading-none">Left</p><p className="text-xl font-black leading-none">{25 - myBoughtPlayers.length}</p></div>
-                <div className="bg-slate-800/40 p-2 rounded-xl border border-slate-700/50 text-center"><p className="text-[8px] text-slate-500 font-black uppercase mb-1 leading-none">OS</p><p className="text-xl font-black leading-none">{Math.max(0, 10 - (myBoughtPlayers.filter(p => p.nationality_type?.toLowerCase() === 'overseas').length))}</p></div>
-             </div>
-             <div className="max-h-32 overflow-y-auto custom-scrollbar pr-1 space-y-1.5 min-h-[50px]">
+            {/* My Roster */}
+            <div className="bg-[#0D1424]/70 rounded-xl p-4 border border-indigo-500/10 shrink-0">
+              <h3 className="text-[10px] text-indigo-400 font-black mb-2 uppercase tracking-[0.15em] flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> My Roster</h3>
+              <div className="grid grid-cols-3 gap-1.5 mb-2">
+                <div className="bg-white/[0.02] p-1.5 rounded-lg border border-white/[0.04] text-center"><p className="text-[7px] text-slate-600 font-bold uppercase leading-none mb-0.5">Total</p><p className="text-lg font-black leading-none">{myBoughtPlayers.length}</p></div>
+                <div className="bg-white/[0.02] p-1.5 rounded-lg border border-white/[0.04] text-center"><p className="text-[7px] text-slate-600 font-bold uppercase leading-none mb-0.5">Left</p><p className="text-lg font-black leading-none">{25 - myBoughtPlayers.length}</p></div>
+                <div className="bg-white/[0.02] p-1.5 rounded-lg border border-white/[0.04] text-center"><p className="text-[7px] text-slate-600 font-bold uppercase leading-none mb-0.5">OS</p><p className="text-lg font-black leading-none">{Math.max(0, 10 - (myBoughtPlayers.filter(p => p.nationality_type?.toLowerCase() === 'overseas').length))}</p></div>
+              </div>
+              <div className="max-h-24 overflow-y-auto custom-scrollbar space-y-1">
                 {myBoughtPlayers.length > 0 ? myBoughtPlayers.map(p => (
-                  <div key={p.id} className="flex justify-between items-center py-2 px-3 bg-slate-800/20 rounded-lg border border-slate-700/30 group hover:border-indigo-500/30">
-                    <span className="text-[10px] font-bold text-slate-300 group-hover:text-white truncate pr-2">{p.name}</span>
-                    <span className="text-[8px] font-black text-indigo-500 uppercase px-1.5 py-0.5 bg-indigo-500/10 rounded-md border border-indigo-500/20">{p.role?.split(' ')[0] || 'PLR'}</span>
+                  <div key={p.id} className="flex justify-between items-center py-1.5 px-2 bg-white/[0.02] rounded-md border border-white/[0.04] hover:border-indigo-500/20">
+                    <span className="text-[10px] font-semibold text-slate-300 truncate pr-2">{p.name}</span>
+                    <span className="text-[7px] font-bold text-indigo-400/70 uppercase px-1 py-0.5 bg-indigo-500/8 rounded">{p.role?.split(' ')[0] || 'PLR'}</span>
                   </div>
-                )) : <div className="text-[10px] text-slate-700 font-bold italic py-4 text-center">Empty squad...</div>}
-             </div>
-          </div>
+                )) : <p className="text-[9px] text-slate-700 italic py-2 text-center">Empty squad...</p>}
+              </div>
+            </div>
 
-          {/* Auction Feed — chronological, most recent first */}
-          <div className="bg-slate-900/60 rounded-2xl p-4 border border-slate-700/50 shadow-xl flex-1 flex flex-col min-h-0">
-             <h3 className="text-white font-black mb-3 uppercase tracking-widest text-[10px] flex items-center gap-2"><History className="w-4 h-4 text-slate-500" /> Auction Feed</h3>
-             <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
-               {soldEvents.length > 0 ? soldEvents.map((ev, i) => {
-                 const p = players.find(x => x.id === ev.playerId);
-                 return (
-                   <div key={`feed-${i}`} className="bg-slate-800/40 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center group">
-                      <div className="truncate pr-2"><p className="text-[11px] font-black text-slate-200 truncate">{p?.name || 'Player'}</p><p className="text-[9px] text-slate-600 truncate uppercase mt-0.5">{ev.userId ? (leaderboard.find(l => String(l.user.id) === String(ev.userId))?.user.name || 'Competitor') : 'Unsold'}</p></div>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border shrink-0 ${ev.amount > 0 ? 'text-amber-400 border-amber-400/20 bg-amber-400/5' : 'text-slate-600 border-slate-800'}`}>{ev.amount > 0 ? formatPrice(ev.amount) : 'UNSOLD'}</span>
-                   </div>
-                 );
-               }) : <div className="h-full flex flex-col items-center justify-center opacity-30 italic text-xs">Waiting for sales...</div>}
-             </div>
-          </div>
+            {/* Auction Feed — sorted by feedOrder (most recent on top) */}
+            <div className="bg-[#0D1424]/70 rounded-xl p-4 border border-white/[0.04] flex-1 flex flex-col min-h-0">
+              <h3 className="text-[10px] text-slate-400 font-black mb-2 uppercase tracking-[0.15em] flex items-center gap-1.5"><History className="w-3.5 h-3.5 text-slate-500" /> Feed</h3>
+              <div className="space-y-1 overflow-y-auto pr-1 custom-scrollbar flex-1">
+                {sortedFeed.length > 0 ? sortedFeed.slice(0, 15).map((ev, i) => {
+                  const p = players.find(x => x.id === ev.playerId);
+                  return (
+                    <div key={`feed-${ev.feedOrder}-${i}`} className="bg-white/[0.02] p-2.5 rounded-lg border border-white/[0.04] flex justify-between items-center hover:border-white/[0.08] transition-colors">
+                      <div className="truncate pr-2">
+                        <p className="text-[10px] font-bold text-slate-300 truncate">{p?.name || 'Player'}</p>
+                        <p className="text-[8px] text-slate-600 truncate uppercase">{ev.isUnsold ? 'Unsold' : (leaderboard.find(l => String(l.user.id) === String(ev.userId))?.user.name || 'Buyer')}</p>
+                      </div>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${ev.amount > 0 ? 'text-amber-400 border-amber-400/15 bg-amber-400/5' : 'text-slate-600 border-white/[0.04]'}`}>{ev.amount > 0 ? formatPrice(ev.amount) : 'UNSOLD'}</span>
+                    </div>
+                  );
+                }) : <div className="h-full flex items-center justify-center opacity-20 italic text-[10px]">Waiting for sales...</div>}
+              </div>
+            </div>
 
+          </div>
         </div>
       </div>
     </div>
