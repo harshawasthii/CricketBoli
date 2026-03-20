@@ -55,7 +55,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       const [details, lead, allPlayers] = await Promise.all([
         fetchWithAuth(`/rooms/${params.code}`),
         fetchWithAuth(`/rooms/${params.code}/leaderboard`),
-        fetchWithAuth(`/rooms/players/all`)
+        fetchWithAuth(`/players/all`)
       ]);
       setRoomDetails(details);
       setLeaderboard(lead);
