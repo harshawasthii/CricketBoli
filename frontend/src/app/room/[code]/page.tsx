@@ -208,6 +208,15 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const handlePause = () => { if(!isAdmin) return; channelRef.current?.send({ type: 'broadcast', event: 'status_change', payload: { status: 'PAUSED' } }); if(timerIdRef.current) clearTimeout(timerIdRef.current); addBidduMessage('⏸️ Auction Paused'); };
   const handleResume = () => { if(!isAdmin) return; startAdminTimer(auctionState); addBidduMessage('▶️ Auction Resumed'); };
   const handleMarkUnsold = () => { if(!isAdmin) return; finalizePlayer({ ...auctionState, highest_bidder_id: null }); };
+  
+  const handleStartNextPlayer = () => {
+    if (!isAdmin) return;
+    if (availablePlayers.length > 0) {
+      handleStartAuction(availablePlayers[0].id);
+    } else {
+      setErrorToast('No more players available in this round!');
+    }
+  };
 
   const formatPrice = (amt: number) => {
     if (amt >= 10000000) return `₹${(amt / 10000000).toFixed(2)} Cr`;
