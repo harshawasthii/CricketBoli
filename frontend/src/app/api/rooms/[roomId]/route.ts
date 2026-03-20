@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { getAuthUser } from '@/lib/authUtils';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request, { params }: { params: { roomId: string } }) {
   try {
     const user = await getAuthUser(req);
