@@ -296,24 +296,29 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   if (!roomDetails || !user) return <div className="min-h-screen bg-[#0B1120] text-white flex flex-col items-center justify-center font-bold text-2xl gap-8 animate-pulse italic">Entering CricketBoli Arena...</div>;
 
   return (
-    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#0B1120] text-white font-sans p-4 md:p-6 lg:p-8 flex flex-col items-center">
+    <div className="h-screen bg-[#0B1120] text-white font-sans p-3 md:p-4 lg:p-5 flex flex-col items-center overflow-hidden">
       {errorToast && <div className="fixed top-8 left-1/2 -translate-x-1/2 bg-red-600/90 text-white px-8 py-4 rounded-full z-[200] flex items-center gap-3 border border-red-400 font-bold shadow-2xl animate-in zoom-in-95 duration-300">{errorToast}</div>}
       
       {/* Header */}
-      <div className="w-full max-w-screen-2xl bg-slate-900/40 backdrop-blur-xl border border-white/5 px-8 h-20 flex items-center justify-between shrink-0 rounded-[32px] mb-6 shadow-2xl">
-          <div className="flex items-center gap-4 cursor-pointer" onClick={() => router.push('/')}>
-            <div className="w-14 h-14 bg-slate-800 border border-white/10 rounded-2xl p-1 shadow-2xl overflow-hidden"><img src="/logo.png" className="w-full h-full object-cover rounded-xl" /></div>
-            <div className="flex flex-col"><h1 className="text-3xl font-black italic tracking-tighter leading-none">CricketBoli</h1><span className="text-[10px] text-amber-500 font-bold uppercase tracking-[0.2em] mt-1 ml-1 leading-none">{params.code}</span></div>
+      <div className="w-full max-w-screen-2xl bg-slate-900/40 backdrop-blur-xl border border-white/5 px-6 h-16 flex items-center justify-between shrink-0 rounded-2xl mb-3 shadow-2xl">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => router.push('/')}>
+            <div className="w-10 h-10 bg-slate-800 border border-white/10 rounded-xl p-0.5 shadow-2xl overflow-hidden"><img src="/logo.png" className="w-full h-full object-cover rounded-lg" /></div>
+            <div className="flex flex-col"><h1 className="text-2xl font-black italic tracking-tighter leading-none">CricketBoli</h1><span className="text-[9px] text-amber-500 font-bold uppercase tracking-[0.2em] mt-0.5 ml-1 leading-none">{params.code}</span></div>
           </div>
-          <div className="flex items-center gap-6 bg-slate-800/80 px-6 py-3 rounded-2xl border border-white/5 shadow-2xl">
-            <Wallet className="w-6 h-6 text-emerald-400" /><div className="text-right"><p className="text-[10px] text-slate-500 uppercase tracking-[0.2em] font-black">My Budget</p><p className="text-2xl font-black text-white">{formatPrice(myMembership?.budget || 0)}</p></div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 bg-indigo-500/10 px-4 py-2 rounded-xl border border-indigo-500/20">
+              <Megaphone className="w-4 h-4 text-indigo-400" /><div className="text-right"><p className="text-[9px] text-indigo-400/70 uppercase tracking-[0.15em] font-black">Players Left</p><p className="text-lg font-black text-indigo-300">{availablePlayers.length}</p></div>
+            </div>
+            <div className="flex items-center gap-3 bg-slate-800/80 px-4 py-2 rounded-xl border border-white/5 shadow-2xl">
+              <Wallet className="w-4 h-4 text-emerald-400" /><div className="text-right"><p className="text-[9px] text-slate-500 uppercase tracking-[0.15em] font-black">My Budget</p><p className="text-lg font-black text-white">{formatPrice(myMembership?.budget || 0)}</p></div>
+            </div>
           </div>
       </div>
 
-      <div className="w-full max-w-screen-2xl flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10 lg:min-h-0">
+      <div className="w-full max-w-screen-2xl flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 relative z-10 min-h-0 overflow-hidden">
         
         {/* Left: Competitors */}
-        <div className="lg:col-span-3 flex flex-col gap-6 lg:h-full lg:min-h-0 order-2 lg:order-1 pb-4">
+        <div className="lg:col-span-3 flex flex-col gap-3 h-full min-h-0 order-2 lg:order-1">
           <div className="bg-slate-900/60 rounded-[32px] p-6 border border-slate-700/50 shadow-2xl flex-1 flex flex-col min-h-0">
              <h3 className="text-white font-black mb-6 uppercase tracking-widest text-[11px] flex items-center gap-2"><Users className="w-5 h-5 text-blue-400" /> Competitors</h3>
              <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1 pb-4">
@@ -337,7 +342,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
         </div>
 
         {/* Center: Arena */}
-        <div className="lg:col-span-6 flex flex-col gap-6 lg:h-full lg:min-h-0 order-1 lg:order-2 pb-4">
+        <div className="lg:col-span-6 flex flex-col gap-3 h-full min-h-0 order-1 lg:order-2">
            {/* Bolibot Messages */}
            <div className="bg-gradient-to-r from-blue-900/40 to-indigo-900/40 p-6 rounded-[32px] border border-blue-500/30 flex items-start gap-5 shadow-xl shrink-0">
               <div className="w-16 h-16 bg-slate-900 rounded-2xl border-2 border-blue-400 p-1 flex-shrink-0 animate-pulse overflow-hidden"><img src="/logo.png" className="w-full h-full object-cover" /></div>
@@ -410,7 +415,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
         </div>
 
         {/* Right: Controls & Feed */}
-        <div className="lg:col-span-3 flex flex-col gap-6 lg:h-full lg:min-h-0 order-3 pb-4">
+        <div className="lg:col-span-3 flex flex-col gap-3 h-full min-h-0 order-3">
           
           {/* Admin Panel */}
           {isAdmin && (
@@ -457,16 +462,16 @@ export default function RoomPage({ params }: { params: { code: string } }) {
              </div>
           </div>
 
-          {/* Auction Feed */}
-          <div className="bg-slate-900/60 rounded-[32px] p-6 border border-slate-700/50 shadow-xl flex-1 flex flex-col min-h-0">
-             <h3 className="text-white font-black mb-6 uppercase tracking-widest text-[10px] flex items-center gap-2"><History className="w-4 h-4 text-slate-500" /> Auction Feed</h3>
-             <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1">
-               {soldEvents.length > 0 ? [...soldEvents].reverse().slice(0, 10).map((ev, i) => {
+          {/* Auction Feed — chronological, most recent first */}
+          <div className="bg-slate-900/60 rounded-2xl p-4 border border-slate-700/50 shadow-xl flex-1 flex flex-col min-h-0">
+             <h3 className="text-white font-black mb-3 uppercase tracking-widest text-[10px] flex items-center gap-2"><History className="w-4 h-4 text-slate-500" /> Auction Feed</h3>
+             <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
+               {soldEvents.length > 0 ? soldEvents.map((ev, i) => {
                  const p = players.find(x => x.id === ev.playerId);
                  return (
-                   <div key={i} className="bg-slate-800/40 p-4 rounded-2xl border border-slate-700/50 flex justify-between items-center group">
-                      <div className="truncate pr-2"><p className="text-xs font-black text-slate-200 truncate">{p?.name || 'Player'}</p><p className="text-[9px] text-slate-600 truncate uppercase mt-0.5">{ev.userId ? (leaderboard.find(l => String(l.user.id) === String(ev.userId))?.user.name || 'Competitor') : 'Unsold'}</p></div>
-                      <span className={`text-[10px] font-black px-3 py-1 rounded-lg border shrink-0 ${ev.amount > 0 ? 'text-amber-400 border-amber-400/20 bg-amber-400/5' : 'text-slate-600 border-slate-800'}`}>{ev.amount > 0 ? formatPrice(ev.amount) : 'UNSOLD'}</span>
+                   <div key={`feed-${i}`} className="bg-slate-800/40 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center group">
+                      <div className="truncate pr-2"><p className="text-[11px] font-black text-slate-200 truncate">{p?.name || 'Player'}</p><p className="text-[9px] text-slate-600 truncate uppercase mt-0.5">{ev.userId ? (leaderboard.find(l => String(l.user.id) === String(ev.userId))?.user.name || 'Competitor') : 'Unsold'}</p></div>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border shrink-0 ${ev.amount > 0 ? 'text-amber-400 border-amber-400/20 bg-amber-400/5' : 'text-slate-600 border-slate-800'}`}>{ev.amount > 0 ? formatPrice(ev.amount) : 'UNSOLD'}</span>
                    </div>
                  );
                }) : <div className="h-full flex flex-col items-center justify-center opacity-30 italic text-xs">Waiting for sales...</div>}
