@@ -66,6 +66,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       setRoomDetails(details);
       setLeaderboard(lead);
       setPlayers(allPlayers || []);
+      addBidduMessage('🏟️ Arena Connected — Bolibot is active!');
       
       // Initialize auction state from persisted DB state
       if (details.current_player_id) {
@@ -410,8 +411,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                       <p className="text-[11px] text-emerald-400/80 font-bold">{formatPrice(member.budget)}</p>
                       {memberPlayers.length > 0 && (
                         <div className="flex flex-wrap gap-0.5 mt-2">
-                          {memberPlayers.slice(0, 8).map(p => <span key={p.id} title={p.name} className="text-[9px] bg-white/[0.04] px-1 py-0.5 rounded text-slate-500 font-bold truncate max-w-[65px]">{p.name.split(' ').pop()}</span>)}
-                          {memberPlayers.length > 8 && <span className="text-[9px] text-slate-600 font-bold px-1">+{memberPlayers.length - 8}</span>}
+                          {memberPlayers.map(p => <span key={p.id} title={p.name} className="text-[10px] bg-white/[0.04] px-1.5 py-0.5 rounded text-slate-400 font-bold border border-white/[0.05]">{p.name.split(' ').pop()}</span>)}
                         </div>
                       )}
                     </div>
@@ -472,7 +472,10 @@ export default function RoomPage({ params }: { params: { code: string } }) {
               </div>
               <div className="flex-1 min-w-0 max-h-[60px] sm:max-h-[80px] overflow-y-auto custom-scrollbar flex flex-col justify-center">
                 {systemMessages.length === 0 ? (
-                  <p className="text-sm sm:text-base text-slate-500 italic font-medium tracking-wide">Bolibot ready to dominate the auction...</p>
+                  <div className="flex flex-col">
+                    <p className="text-sm sm:text-base font-black text-cyan-400 animate-pulse uppercase tracking-widest">{auctionState.status === 'IDLE' ? 'Arena Live' : `Going ${auctionState.status}`}</p>
+                    <p className="text-[10px] text-slate-500 italic font-medium">Waiting for Bolibot broadcast...</p>
+                  </div>
                 ) : systemMessages.slice(-3).map((msg) => (
                   <p key={msg.id} className="text-sm sm:text-base font-black text-white leading-tight animate-in slide-in-from-left-2 duration-200 truncate tracking-tight">{msg.text}</p>
                 ))}
