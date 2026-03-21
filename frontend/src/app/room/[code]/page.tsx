@@ -115,17 +115,23 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     timerIdRef.current = setTimeout(() => {
       const live1 = liveAuctionRef.current;
       setAuctionState({ ...live1, status: 'ONCE' }); sendRoomUpdate({ ...live1, status: 'ONCE' });
-      channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '🏮 Going ONCE!' });
+      const msgOnce = '🏮 Going ONCE!';
+      channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: msgOnce });
+      addBidduMessage(msgOnce);
 
       timerIdRef.current = setTimeout(() => {
         const live2 = liveAuctionRef.current;
         setAuctionState({ ...live2, status: 'TWICE' }); sendRoomUpdate({ ...live2, status: 'TWICE' });
-        channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '💡 Going TWICE!' });
+        const msgTwice = '💡 Going TWICE!';
+        channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: msgTwice });
+        addBidduMessage(msgTwice);
 
         timerIdRef.current = setTimeout(() => {
           const live3 = liveAuctionRef.current;
           setAuctionState({ ...live3, status: 'THRICE' }); sendRoomUpdate({ ...live3, status: 'THRICE' });
-          channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '🔨 Going THRICE!' });
+          const msgThrice = '🔨 Going THRICE!';
+          channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: msgThrice });
+          addBidduMessage(msgThrice);
 
           timerIdRef.current = setTimeout(() => {
             finalizePlayerFromRef(liveAuctionRef.current);
@@ -141,12 +147,16 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       if (live.highest_bidder_id) {
         await fetchWithAuth(`/rooms/${params.code}/sold`, { method: 'POST', body: JSON.stringify({ playerId: live.current_player_id, buyerId: live.highest_bidder_id, amount: live.current_bid }) });
         const bidderName = leaderboardRef.current.find(l => String(l.user.id) === String(live.highest_bidder_id))?.user.name || 'Competitor';
+        const msgSold = `🎉 SOLD to ${bidderName} for ${formatPrice(live.current_bid)}!`;
         channelRef.current?.send({ type: 'broadcast', event: 'player_sold', payload: { playerId: live.current_player_id, userId: live.highest_bidder_id, amount: live.current_bid } });
-        channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: `🎉 SOLD to ${bidderName} for ${formatPrice(live.current_bid)}!` });
+        channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: msgSold });
+        addBidduMessage(msgSold);
       } else {
         await fetchWithAuth(`/rooms/${params.code}/unsold`, { method: 'POST', body: JSON.stringify({ playerId: live.current_player_id }) });
+        const msgUnsold = '❌ Player UNSOLD!';
         channelRef.current?.send({ type: 'broadcast', event: 'player_unsold', payload: { playerId: live.current_player_id } });
-        channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: '❌ Player UNSOLD!' });
+        channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: msgUnsold });
+        addBidduMessage(msgUnsold);
       }
       const resetState = { current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' };
       liveAuctionRef.current = { current_player_id: null, current_bid: 0, highest_bidder_id: null };
@@ -285,7 +295,9 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     });
 
     setAuctionState(newState); sendRoomUpdate(newState);
-    channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: `⚡ ${player.name} — ${player.role} — Base: ${player.base_price}` });
+    const msgStart = `⚡ ${player.name} — ${player.role} — Base: ${player.base_price}`;
+    channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: msgStart });
+    addBidduMessage(msgStart);
     startAdminTimer();
     playSfx('click');
   };
@@ -477,7 +489,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                     <p className="text-[10px] text-slate-500 italic font-medium">Waiting for Bolibot broadcast...</p>
                   </div>
                 ) : systemMessages.slice(-3).map((msg) => (
-                  <p key={msg.id} className="text-sm sm:text-base font-black text-white leading-tight animate-in slide-in-from-left-2 duration-200 truncate tracking-tight">{msg.text}</p>
+                  <p key={msg.id} className="text-sm sm:text-base font-black text-white leading-tight animate-in slide-in-from-left-2 duration-200 tracking-tight">{msg.text}</p>
                 ))}
               </div>
               <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_15px_rgba(34,211,238,0.6)] shrink-0" />
