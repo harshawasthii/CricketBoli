@@ -379,13 +379,13 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                     <div key={member.user.id} className={`p-3 rounded-lg border transition-all ${String(member.user.id) === String(user?.id) ? 'bg-indigo-500/8 border-indigo-500/25' : 'bg-white/[0.02] border-white/[0.04] hover:border-white/[0.08]'}`}>
                       <div className="flex justify-between items-center mb-1">
                         <p className="text-xs font-bold text-white truncate pr-2">{member.user.name}</p>
-                        <span className="text-[9px] bg-black/40 font-mono text-slate-500 px-1.5 py-0.5 rounded shrink-0">{memberPlayers.length}/25</span>
+                        <span className="text-[10px] bg-black/40 font-mono text-slate-500 px-1.5 py-0.5 rounded shrink-0">{memberPlayers.length}/25</span>
                       </div>
-                      <p className="text-[10px] text-emerald-400/80 font-semibold">{formatPrice(member.budget)}</p>
+                      <p className="text-[11px] text-emerald-400/80 font-bold">{formatPrice(member.budget)}</p>
                       {memberPlayers.length > 0 && (
                         <div className="flex flex-wrap gap-0.5 mt-2">
-                          {memberPlayers.slice(0, 8).map(p => <span key={p.id} title={p.name} className="text-[7px] bg-white/[0.04] px-1 py-0.5 rounded text-slate-500 font-semibold truncate max-w-[55px]">{p.name.split(' ').pop()}</span>)}
-                          {memberPlayers.length > 8 && <span className="text-[7px] text-slate-600 font-bold px-1">+{memberPlayers.length - 8}</span>}
+                          {memberPlayers.slice(0, 8).map(p => <span key={p.id} title={p.name} className="text-[9px] bg-white/[0.04] px-1 py-0.5 rounded text-slate-500 font-bold truncate max-w-[65px]">{p.name.split(' ').pop()}</span>)}
+                          {memberPlayers.length > 8 && <span className="text-[9px] text-slate-600 font-bold px-1">+{memberPlayers.length - 8}</span>}
                         </div>
                       )}
                     </div>
@@ -422,7 +422,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                       <span className="px-2.5 sm:px-3 text-indigo-300 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] border border-indigo-500/30 bg-indigo-500/20 py-1 shadow-[0_0_20px_-5px_rgba(99,102,241,0.4)]">{currentPlayer.role}</span>
                       <span className={`px-2.5 sm:px-3 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] border shadow-sm py-1 ${currentPlayer.nationality_type?.toLowerCase() === 'overseas' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30 shadow-rose-500/10' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-emerald-500/10'}`}>{currentPlayer.nationality_type}</span>
                     </div>
-                    <h2 className="text-4xl sm:text-6xl lg:text-8xl font-display font-black text-white tracking-tighter uppercase leading-[0.85] drop-shadow-[0_0_40px_rgba(255,255,255,0.2)] mb-2 sm:mb-3">{currentPlayer.name}</h2>
+                    <h2 className="text-3xl sm:text-5xl lg:text-7xl font-display font-black text-white tracking-tighter uppercase leading-[0.85] drop-shadow-[0_0_40px_rgba(255,255,255,0.2)] mb-2 sm:mb-3">{currentPlayer.name}</h2>
                     <p className="text-[10px] sm:text-[11px] text-slate-500 font-black tracking-[0.3em] uppercase opacity-70">Base: {currentPlayer.base_price}</p>
                   </div>
 
