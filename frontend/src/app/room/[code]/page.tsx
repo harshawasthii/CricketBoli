@@ -365,6 +365,8 @@ export default function RoomPage({ params }: { params: { code: string } }) {
 
   return (
     <div className="min-h-screen lg:h-screen bg-[#060B18] text-white font-sans flex flex-col overflow-y-auto lg:overflow-hidden">
+      {/* DIAGNOSTIC MARKER */}
+      <div className="bg-emerald-600 text-[8px] font-black text-center py-0.5 tracking-[1em] uppercase shrink-0">Layout Reversal Active</div>
       {errorToast && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-red-500/95 backdrop-blur-md text-white px-6 py-3 rounded-xl z-[200] font-bold text-sm shadow-2xl shadow-red-900/30 border border-red-400/40">{errorToast}</div>}
 
       
