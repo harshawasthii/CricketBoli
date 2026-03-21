@@ -14,8 +14,8 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   
   const [auctionState, setAuctionState] = useState<any>({ current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' });
   const [soldEvents, setSoldEvents] = useState<any[]>([]);
-  const [bidduMessages, setBidduMessages] = useState<{id: number, text: string}[]>([]);
   const [errorToast, setErrorToast] = useState('');
+
   const [optionRoundActive, setOptionRoundActive] = useState(false);
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [bidCooldown, setBidCooldown] = useState(false);
@@ -365,7 +365,12 @@ export default function RoomPage({ params }: { params: { code: string } }) {
 
   return (
     <div className="min-h-screen lg:h-screen bg-[#060B18] text-white font-sans flex flex-col overflow-y-auto lg:overflow-hidden">
+      {/* MEGA DIAGNOSTIC BANNER */}
+      <div className="bg-pink-600 text-white font-black text-center py-6 z-[99999] shadow-2xl animate-pulse text-xl uppercase tracking-[0.5em] shrink-0">
+        🚀 CHATROOM OVERHAUL LOADED 🚀
+      </div>
       {errorToast && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-red-500/95 backdrop-blur-md text-white px-6 py-3 rounded-xl z-[200] font-bold text-sm shadow-2xl shadow-red-900/30 border border-red-400/40">{errorToast}</div>}
+
       
       {/* ── Header ── */}
       <div className="px-2 sm:px-4 py-1.5 sm:py-2 shrink-0">
