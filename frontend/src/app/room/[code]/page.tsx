@@ -365,8 +365,6 @@ export default function RoomPage({ params }: { params: { code: string } }) {
 
   return (
     <div className="min-h-screen lg:h-screen bg-[#060B18] text-white font-sans flex flex-col overflow-y-auto lg:overflow-hidden">
-      {/* DIAGNOSTIC MARKER */}
-      <div className="bg-emerald-600 text-[8px] font-black text-center py-0.5 tracking-[1em] uppercase shrink-0">Layout Reversal Active</div>
       {errorToast && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-red-500/95 backdrop-blur-md text-white px-6 py-3 rounded-xl z-[200] font-bold text-sm shadow-2xl shadow-red-900/30 border border-red-400/40">{errorToast}</div>}
 
       
@@ -396,8 +394,8 @@ export default function RoomPage({ params }: { params: { code: string } }) {
           
           {/* ─ Left: Competitors & Chat ─ */}
           <div className="hidden lg:flex lg:col-span-3 flex-col h-full min-h-0 order-2 lg:order-1 gap-2.5">
-            {/* Competitors List */}
-            <div className="bg-[#0D1424]/70 rounded-xl p-4 border border-white/[0.04] flex-[0.4] flex flex-col min-h-0">
+            {/* Competitors List (Expanded) */}
+            <div className="bg-[#0D1424]/70 rounded-xl p-4 border border-white/[0.04] flex-[0.6] flex flex-col min-h-0">
               <h3 className="text-[10px] text-slate-400 font-black mb-3 uppercase tracking-[0.15em] flex items-center gap-2"><Users className="w-4 h-4 text-blue-400" /> Competitors</h3>
               <div className="space-y-2 overflow-y-auto pr-1 custom-scrollbar flex-1">
                 {leaderboard.map((member) => {
@@ -415,8 +413,8 @@ export default function RoomPage({ params }: { params: { code: string } }) {
               </div>
             </div>
 
-            {/* Unified ChatRoom (New Sidebar Location) */}
-            <div className="flex-[0.6] bg-[#0D1424]/40 rounded-xl border border-white/[0.02] flex flex-col min-h-0 relative overflow-hidden backdrop-blur-sm shadow-inner group">
+            {/* Unified ChatRoom (Reduced) */}
+            <div className="flex-[0.4] bg-[#0D1424]/40 rounded-xl border border-white/[0.02] flex flex-col min-h-0 relative overflow-hidden backdrop-blur-sm shadow-inner group">
                <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 custom-scrollbar">
                  {chatMessages.length === 0 && (
                    <div className="h-full flex flex-col items-center justify-center opacity-20 text-center px-4">
@@ -466,22 +464,22 @@ export default function RoomPage({ params }: { params: { code: string } }) {
           {/* ─ Center: Arena ─ */}
           <div className="lg:col-span-6 flex flex-col gap-2 sm:gap-2.5 min-h-[70vh] lg:min-h-0 h-auto lg:h-full order-1 lg:order-2">
             
-            {/* Bolibot — SHARP (Restored) */}
-            <div className="bg-[#0D1424] rounded-xl border border-cyan-500/20 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 shrink-0 shadow-[0_0_30px_-10px_rgba(34,211,238,0.15)]">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-400/30 flex items-center justify-center shrink-0">
-                <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
+            {/* Bolibot — SHARP (Expanded) */}
+            <div className="bg-[#0D1424] rounded-xl border border-cyan-500/20 flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3 sm:py-5 shrink-0 shadow-[0_0_40px_-10px_rgba(34,211,238,0.2)]">
+              <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-400/30 flex items-center justify-center shrink-0">
+                <Shield className="w-5 h-5 sm:w-7 sm:h-7 text-cyan-400" />
               </div>
-              <div className="flex-1 min-w-0 max-h-[40px] sm:max-h-[52px] overflow-y-auto custom-scrollbar flex flex-col justify-end">
+              <div className="flex-1 min-w-0 max-h-[60px] sm:max-h-[80px] overflow-y-auto custom-scrollbar flex flex-col justify-center">
                 {chatMessages.filter(m => m.type === 'system').length === 0 ? (
-                  <p className="text-xs sm:text-sm text-slate-500 italic">Bolibot ready...</p>
-                ) : chatMessages.filter(m => m.type === 'system').slice(-2).map((msg) => (
-                  <p key={msg.id} className="text-xs sm:text-sm font-bold text-white/90 leading-snug animate-in slide-in-from-left-2 duration-200 truncate">{msg.text}</p>
+                  <p className="text-sm sm:text-base text-slate-500 italic font-medium tracking-wide">Bolibot ready to dominate the auction...</p>
+                ) : chatMessages.filter(m => m.type === 'system').slice(-3).map((msg) => (
+                  <p key={msg.id} className="text-sm sm:text-base font-black text-white leading-tight animate-in slide-in-from-left-2 duration-200 truncate tracking-tight">{msg.text}</p>
                 ))}
               </div>
-              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0" />
+              <div className="w-3 h-3 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_15px_rgba(34,211,238,0.6)] shrink-0" />
             </div>
 
-            {/* Main Full-Size Display (Restored) */}
+            {/* Main Player Display (Slightly Reduced Height) */}
             <div className="bg-[#0D1424]/70 rounded-xl flex-1 w-full flex flex-col items-center justify-center relative overflow-y-auto border border-white/[0.04]">
               {currentPlayer ? (
                 <div className="text-center w-full max-w-2xl flex flex-col items-center justify-center gap-4 sm:gap-6 py-4 sm:py-6 px-3 sm:px-4 animate-in zoom-in-95 duration-400">
