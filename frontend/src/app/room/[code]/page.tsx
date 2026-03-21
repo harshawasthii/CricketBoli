@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { fetchWithAuth } from '@/lib/api';
-import { History, Users, Wallet, Megaphone, CheckCircle2, Pause, ChevronRight, User, PlayCircle, XCircle, Zap, Shield } from 'lucide-react';
+import { History, Users, Wallet, Megaphone, CheckCircle2, Pause, ChevronRight, User, PlayCircle, XCircle, Zap, Shield, MessageSquare, Send } from 'lucide-react';
 
 export default function RoomPage({ params }: { params: { code: string } }) {
   const router = useRouter();
@@ -20,6 +20,9 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [bidCooldown, setBidCooldown] = useState(false);
   const [adminOnline, setAdminOnline] = useState(true);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [msgInput, setMsgInput] = useState('');
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const channelRef = useRef<any>(null);
   const timerIdRef = useRef<NodeJS.Timeout | null>(null);
@@ -50,7 +53,9 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     } catch (e) {}
   };
 
-  const addBidduMessage = (text: string) => { setBidduMessages(prev => [...prev.slice(-10), { id: Date.now(), text }]); };
+  const addBidduMessage = (text: string) => { 
+    setChatMessages(prev => [...prev, { id: Date.now(), type: 'system', text }]);
+  };
 
   const initRoom = async () => {
     try {
@@ -169,6 +174,9 @@ export default function RoomPage({ params }: { params: { code: string } }) {
         });
       })
       .on('broadcast', { event: 'biddu_msg' }, ({ payload }) => addBidduMessage(payload))
+      .on('broadcast', { event: 'chat_message' }, ({ payload }) => {
+        setChatMessages(prev => [...prev, { ...payload, id: Date.now() }]);
+      })
       .on('broadcast', { event: 'new_bid' }, ({ payload }) => {
         liveAuctionRef.current = { ...liveAuctionRef.current, current_bid: payload.amount, highest_bidder_id: payload.userId };
         setAuctionState((prev: any) => ({ ...prev, current_bid: payload.amount, highest_bidder_id: payload.userId, status: 'IDLE' }));
@@ -322,7 +330,22 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const myBoughtPlayers = players ? players.filter(p => soldEvents.some(s => s.playerId === p.id && String(s.userId) === String(user?.id) && !s.isUnsold)) : [];
   const mainPlayersRemaining = players ? players.filter(p => !soldEvents.find(s => s.playerId === p.id)).length : 0;
   // Feed sorted by insertion order (most recent LAST in array = most recent on TOP in display)
+  const handleSendMessage = () => {
+    if (!msgInput.trim()) return;
+    const payload = { user_id: user.id, user_name: user.name, text: msgInput, type: 'chat' };
+    channelRef.current?.send({ type: 'broadcast', event: 'chat_message', payload });
+    setChatMessages(prev => [...prev, { ...payload, id: Date.now() }]);
+    setMsgInput('');
+  };
+
+  useEffect(() => {
+    setTimeout(() => {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  }, [chatMessages]);
+
   const sortedFeed = [...soldEvents].sort((a, b) => (b.feedOrder ?? 0) - (a.feedOrder ?? 0));
+
 
   // Auto mode
   useEffect(() => {
@@ -398,73 +421,105 @@ export default function RoomPage({ params }: { params: { code: string } }) {
           {/* ─ Center: Arena ─ */}
           <div className="lg:col-span-6 flex flex-col gap-2 sm:gap-2.5 min-h-[70vh] lg:min-h-0 h-auto lg:h-full order-1 lg:order-2">
             
-            {/* Bolibot — SHARP */}
-            <div className="bg-[#0D1424] rounded-xl border border-cyan-500/20 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 shrink-0 shadow-[0_0_30px_-10px_rgba(34,211,238,0.15)]">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-400/30 flex items-center justify-center shrink-0">
-                <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
-              </div>
-              <div className="flex-1 min-w-0 max-h-[40px] sm:max-h-[52px] overflow-y-auto custom-scrollbar flex flex-col justify-end">
-                {bidduMessages.length === 0 ? (
-                  <p className="text-xs sm:text-sm text-slate-500 italic">Bolibot ready...</p>
-                ) : bidduMessages.slice(-2).map((msg) => (
-                  <p key={msg.id} className="text-xs sm:text-sm font-bold text-white/90 leading-snug animate-in slide-in-from-left-2 duration-200 truncate">{msg.text}</p>
-                ))}
-              </div>
-              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0" />
-            </div>
-
-            {/* Main Display */}
-            <div className="bg-[#0D1424]/70 rounded-xl flex-1 w-full flex flex-col items-center justify-center relative overflow-y-auto border border-white/[0.04]">
+            {/* Compact Header Arena instead of full-screen Arena */}
+            <div className="bg-[#0D1424]/70 rounded-xl border border-white/[0.04] overflow-hidden shrink-0">
               {currentPlayer ? (
-                <div className="text-center w-full max-w-2xl flex flex-col items-center justify-center gap-4 sm:gap-6 py-4 sm:py-6 px-3 sm:px-4 animate-in zoom-in-95 duration-400">
-                  <div className="shrink-0">
-                    <div className="flex justify-center gap-1.5 sm:gap-2 mb-3 sm:mb-4 flex-wrap">
-                      <span className="px-2.5 sm:px-3 text-indigo-300 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] border border-indigo-500/30 bg-indigo-500/20 py-1 shadow-[0_0_20px_-5px_rgba(99,102,241,0.4)]">{currentPlayer.role}</span>
-                      <span className={`px-2.5 sm:px-3 rounded-md text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] border shadow-sm py-1 ${currentPlayer.nationality_type?.toLowerCase() === 'overseas' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30 shadow-rose-500/10' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-emerald-500/10'}`}>{currentPlayer.nationality_type}</span>
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-3 sm:p-4">
+                  {/* Player Info (Small) */}
+                  <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+                    <div className="text-left">
+                      <div className="flex gap-1.5 mb-1">
+                        <span className="px-1.5 py-0.5 text-indigo-300 rounded text-[7px] font-black uppercase tracking-wider border border-indigo-500/30 bg-indigo-500/10 leading-none">{currentPlayer.role?.split(' ')[0]}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-wider border leading-none ${currentPlayer.nationality_type?.toLowerCase() === 'overseas' ? 'bg-rose-500/10 text-rose-300 border-rose-500/20' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'}`}>{currentPlayer.nationality_type?.slice(0,3)}</span>
+                      </div>
+                      <h2 className="text-xl sm:text-2xl lg:text-3xl font-display font-black text-white tracking-tighter uppercase leading-none">{currentPlayer.name}</h2>
+                      <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest opacity-60">Base: {currentPlayer.base_price}</p>
                     </div>
-                    <h2 className="text-3xl sm:text-5xl lg:text-7xl font-display font-black text-white tracking-tighter uppercase leading-[0.85] drop-shadow-[0_0_40px_rgba(255,255,255,0.2)] mb-2 sm:mb-3">{currentPlayer.name}</h2>
-                    <p className="text-[10px] sm:text-[11px] text-slate-500 font-black tracking-[0.3em] uppercase opacity-70">Base: {currentPlayer.base_price}</p>
                   </div>
 
-                  <div className={`w-full max-w-lg bg-black/50 rounded-xl p-3 sm:p-5 border ${String(auctionState.highest_bidder_id) === String(user?.id) ? 'border-amber-500/40 shadow-[0_0_40px_-10px_rgba(245,158,11,0.2)]' : 'border-white/[0.06]'}`}>
-                    <div className="flex justify-center mb-1.5 sm:mb-2">
-                      {auctionState.status === 'PAUSED' ? (
-                        <span className="bg-amber-500/15 text-amber-400 px-3 sm:px-4 py-0.5 sm:py-1 rounded-md font-bold text-[8px] sm:text-[9px] tracking-widest border border-amber-500/20 animate-pulse uppercase">PAUSED</span>
-                      ) : (
-                        <span className={`px-3 sm:px-4 py-0.5 sm:py-1 rounded-md font-bold text-[8px] sm:text-[9px] tracking-widest border uppercase ${['ONCE','TWICE','THRICE'].includes(auctionState.status) ? 'bg-red-500/15 text-red-400 border-red-500/20 animate-bounce' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'}`}>{auctionState.status === 'IDLE' ? '● LIVE' : `GOING ${auctionState.status}`}</span>
-                      )}
+                  {/* Bid Display (Small) */}
+                  <div className="flex items-center gap-3 sm:gap-6 flex-1 justify-end">
+                    <div className="text-right">
+                      <div className="flex justify-end mb-1">
+                        {auctionState.status === 'PAUSED' ? (
+                          <span className="text-amber-400 font-bold text-[7px] tracking-widest uppercase animate-pulse">PAUSED</span>
+                        ) : (
+                          <span className={`font-bold text-[7px] tracking-widest uppercase ${['ONCE','TWICE','THRICE'].includes(auctionState.status) ? 'text-red-400' : 'text-emerald-400'}`}>{auctionState.status === 'IDLE' ? '● LIVE' : auctionState.status}</span>
+                        )}
+                      </div>
+                      <p className="text-[12px] sm:text-lg lg:text-2xl font-black text-amber-400 leading-none">{formatPrice(auctionState.current_bid)}</p>
+                      <p className="text-[7px] text-slate-500 uppercase font-bold tracking-tighter truncate max-w-[100px]">
+                        {auctionState.highest_bidder_id ? leaderboard.find(l => String(l.user.id) === String(auctionState.highest_bidder_id))?.user.name : 'No bid'}
+                      </p>
                     </div>
-                    <p className="text-[8px] sm:text-[9px] text-amber-500/60 mb-0.5 sm:mb-1 uppercase tracking-[0.25em] font-bold">Current Price</p>
-                    <p className="text-3xl sm:text-5xl lg:text-6xl font-black text-amber-400 mb-2 sm:mb-3 leading-none break-all">{formatPrice(auctionState.current_bid)}</p>
-                    
-                    <div className="mb-2 sm:mb-4 min-h-[20px] sm:min-h-[24px] flex justify-center">
-                      {auctionState.highest_bidder_id ? (
-                        <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-0.5 sm:py-1 bg-amber-500/8 rounded-lg border border-amber-500/15">
-                          <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
-                          <span className="text-amber-300 font-semibold text-[10px] sm:text-xs">{leaderboard.find(l => String(l.user.id) === String(auctionState.highest_bidder_id))?.user.name || 'Competitor'}</span>
-                        </div>
-                      ) : <span className="text-slate-600 font-bold text-[8px] sm:text-[9px] tracking-widest italic uppercase">Awaiting bid...</span>}
-                    </div>
-                    
-                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-                      {[10, 30, 50, 75, 100].map((v) => (
+
+                    {/* Quick Bid Buttons (Even Smaller) */}
+                    <div className="flex gap-1">
+                      {[10, 50, 100].map((v) => (
                         <button 
                           key={v} onClick={() => handlePlaceBid(liveAuctionRef.current.current_bid + (v * 100000))} 
                           disabled={auctionState.status === 'PAUSED' || bidCooldown}
-                          className={`bg-white/[0.03] border border-white/[0.06] hover:border-amber-400/50 hover:bg-amber-400/5 text-white hover:text-amber-400 rounded-lg py-2.5 sm:py-3 font-bold text-xs sm:text-[10px] transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed`}
-                        ><span className="text-[7px] text-slate-600 block leading-none mb-0.5">+</span>{v}L</button>
+                          className="bg-white/[0.03] border border-white/[0.06] hover:border-amber-400/50 hover:bg-amber-400/5 text-white hover:text-amber-400 rounded-md px-2 py-1.5 font-bold text-[9px] transition-all active:scale-95 disabled:opacity-20"
+                        >+{v}L</button>
                       ))}
                     </div>
-                    {!auctionState.highest_bidder_id && !bidCooldown && auctionState.status !== 'PAUSED' && (
-                      <button onClick={() => handlePlaceBid(liveAuctionRef.current.current_bid)} className="w-full mt-2 py-2.5 sm:py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-all text-xs sm:text-sm">OPEN BID AT BASE</button>
-                    )}
-                    {bidCooldown && <p className="mt-1.5 sm:mt-2 text-center text-amber-500/40 text-[8px] sm:text-[9px] font-bold uppercase tracking-wider animate-pulse">⏳ Cooldown 2.5s</p>}
                   </div>
                 </div>
               ) : (
-                <div className="text-center opacity-30 flex flex-col items-center gap-3"><Megaphone className="w-14 h-14 text-slate-600" /><p className="text-2xl font-black tracking-tight">WAITING FOR NEXT PLAYER</p></div>
+                <div className="p-4 text-center opacity-30 flex items-center justify-center gap-3">
+                  <Megaphone className="w-5 h-5" />
+                  <p className="text-sm font-black tracking-widest">WAITING FOR NEXT PLAYER</p>
+                </div>
               )}
             </div>
+
+            {/* Unified ChatRoom Area */}
+            <div className="flex-1 bg-[#0D1424]/40 rounded-xl border border-white/[0.02] flex flex-col min-h-0 relative overflow-hidden backdrop-blur-sm shadow-inner">
+               <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 custom-scrollbar">
+                 {chatMessages.length === 0 && (
+                   <div className="h-full flex flex-col items-center justify-center opacity-20 text-center px-10">
+                     <MessageSquare className="w-12 h-12 mb-2" />
+                     <p className="font-bold uppercase tracking-[0.2em] text-[10px]">Auction Chat & BoliBot Updates</p>
+                   </div>
+                 )}
+                 {chatMessages.map((msg) => (
+                   <div key={msg.id} className={`flex flex-col ${msg.type === 'system' ? 'items-center' : (String(msg.user_id) === String(user?.id) ? 'items-end' : 'items-start')}`}>
+                     {msg.type === 'system' ? (
+                       <div className="bg-white/5 border border-white/5 rounded-full px-4 py-1.5 shadow-sm">
+                         <p className="text-[10px] sm:text-[11px] font-bold text-slate-400 italic leading-none">{msg.text}</p>
+                       </div>
+                     ) : (
+                       <div className="max-w-[85%] group">
+                         <p className={`text-[9px] font-bold mb-1 uppercase tracking-wider opacity-40 px-1 ${String(msg.user_id) === String(user?.id) ? 'text-right' : 'text-left'}`}>{msg.user_name}</p>
+                         <div className={`px-4 py-2.5 rounded-2xl text-[13px] sm:text-sm shadow-sm transition-all border ${String(msg.user_id) === String(user?.id) ? 'bg-indigo-600 border-indigo-500/50 text-white rounded-tr-none' : 'bg-white/5 border-white/10 text-slate-200 rounded-tl-none'}`}>
+                           <p className="font-bold leading-snug">{msg.text}</p>
+                         </div>
+                       </div>
+                     )}
+                   </div>
+                 ))}
+                 <div ref={chatEndRef} />
+               </div>
+
+               {/* Chat Input */}
+               <div className="px-3 sm:px-4 py-3 bg-[#0D1424]/60 border-t border-white/[0.04] backdrop-blur-md">
+                 <div className="flex gap-2">
+                   <input 
+                    type="text" value={msgInput} onChange={(e) => setMsgInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Type a message..."
+                    className="flex-1 bg-black/40 border border-white/[0.05] rounded-xl px-4 py-2 sm:py-2.5 text-sm sm:text-base font-bold focus:outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-700"
+                   />
+                   <button 
+                    onClick={handleSendMessage}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 sm:px-5 rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center"
+                   >
+                     <Send className="w-4 h-4" />
+                   </button>
+                 </div>
+               </div>
+            </div>
+
           </div>
 
           {/* ─ Right: Controls & Feed ─ */}
