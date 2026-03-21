@@ -33,12 +33,14 @@ export async function GET(req: Request, { params }: { params: { roomId: string }
 
     // Fetch auction history to persist room states
     const { data: rosters } = await supabase.from('rosters')
-      .select('player_id, user_id, bought_for')
-      .eq('room_id', room.id);
+      .select('id, player_id, user_id, bought_for, created_at')
+      .eq('room_id', room.id)
+      .order('created_at', { ascending: true });
       
     const { data: unsold } = await supabase.from('unsold_players')
-      .select('player_id')
-      .eq('room_id', room.id);
+      .select('id, player_id, created_at')
+      .eq('room_id', room.id)
+      .order('created_at', { ascending: true });
 
     return NextResponse.json({ 
        ...room, 

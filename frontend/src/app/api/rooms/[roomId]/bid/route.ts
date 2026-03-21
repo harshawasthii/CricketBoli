@@ -37,7 +37,13 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
       }
     }
 
-    // Success response - the client will then broadcast the bid to others
+    // Success response - persist bid in database so it's not lost on refresh
+    await supabase.from('rooms').update({
+      current_player_id: playerId,
+      current_bid: amount,
+      highest_bidder_id: user.id
+    }).eq('id', room.id);
+
     return NextResponse.json({ success: true, userId: user.id, amount });
   } catch (error) {
     console.error(error);

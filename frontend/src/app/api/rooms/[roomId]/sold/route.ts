@@ -39,6 +39,13 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
         }).eq('id', participant.id);
     }
 
+    // Clear current auction state in database
+    await supabase.from('rooms').update({
+      current_player_id: null,
+      current_bid: 0,
+      highest_bidder_id: null
+    }).eq('id', room.id);
+
     return NextResponse.json({ success: true, playerId, userId: buyerId, amount });
   } catch (error) {
     console.error(error);
