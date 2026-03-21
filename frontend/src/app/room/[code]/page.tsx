@@ -21,6 +21,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const [bidCooldown, setBidCooldown] = useState(false);
   const [adminOnline, setAdminOnline] = useState(true);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [systemMessages, setSystemMessages] = useState<any[]>([]);
   const [msgInput, setMsgInput] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -54,7 +55,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   };
 
   const addBidduMessage = (text: string) => { 
-    setChatMessages(prev => [...prev, { id: Date.now(), type: 'system', text }]);
+    setSystemMessages(prev => [...prev, { id: Date.now(), type: 'system', text }]);
   };
 
   const initRoom = async () => {
@@ -163,7 +164,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     setUser(userData);
     initRoom();
 
-    const channel = supabase.channel(`room_${params.code}`, { config: { broadcast: { self: true }, presence: { key: userData.id } } });
+    const channel = supabase.channel(`room_${params.code}`, { config: { broadcast: { self: false }, presence: { key: userData.id } } });
     channelRef.current = channel;
 
     channel
@@ -407,6 +408,12 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                         <span className="text-[10px] bg-black/40 font-mono text-slate-500 px-1.5 py-0.5 rounded shrink-0">{memberPlayers.length}/25</span>
                       </div>
                       <p className="text-[11px] text-emerald-400/80 font-bold">{formatPrice(member.budget)}</p>
+                      {memberPlayers.length > 0 && (
+                        <div className="flex flex-wrap gap-0.5 mt-2">
+                          {memberPlayers.slice(0, 8).map(p => <span key={p.id} title={p.name} className="text-[9px] bg-white/[0.04] px-1 py-0.5 rounded text-slate-500 font-bold truncate max-w-[65px]">{p.name.split(' ').pop()}</span>)}
+                          {memberPlayers.length > 8 && <span className="text-[9px] text-slate-600 font-bold px-1">+{memberPlayers.length - 8}</span>}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -423,19 +430,13 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                    </div>
                  )}
                  {chatMessages.map((msg) => (
-                   <div key={msg.id} className={`flex flex-col ${msg.type === 'system' ? 'items-center' : (String(msg.user_id) === String(user?.id) ? 'items-end' : 'items-start')}`}>
-                     {msg.type === 'system' ? (
-                       <div className="bg-white/5 border border-white/5 rounded-full px-3 py-1 mb-1">
-                         <p className="text-[9px] font-bold text-slate-500 italic leading-none">{msg.text}</p>
+                   <div key={msg.id} className={`flex flex-col ${String(msg.user_id) === String(user?.id) ? 'items-end' : 'items-start'}`}>
+                     <div className="max-w-[90%]">
+                       <p className={`text-[8px] font-bold mb-0.5 uppercase tracking-wider opacity-30 px-1 ${String(msg.user_id) === String(user?.id) ? 'text-right' : 'text-left'}`}>{msg.user_name.split(' ')[0]}</p>
+                       <div className={`px-3 py-1.5 rounded-xl text-[12px] shadow-sm border ${String(msg.user_id) === String(user?.id) ? 'bg-indigo-600 border-indigo-500/50 text-white rounded-tr-none' : 'bg-white/5 border-white/10 text-slate-200 rounded-tl-none'}`}>
+                         <p className="font-bold leading-tight">{msg.text}</p>
                        </div>
-                     ) : (
-                       <div className="max-w-[90%]">
-                         <p className={`text-[8px] font-bold mb-0.5 uppercase tracking-wider opacity-30 px-1 ${String(msg.user_id) === String(user?.id) ? 'text-right' : 'text-left'}`}>{msg.user_name.split(' ')[0]}</p>
-                         <div className={`px-3 py-1.5 rounded-xl text-[12px] shadow-sm border ${String(msg.user_id) === String(user?.id) ? 'bg-indigo-600 border-indigo-500/50 text-white rounded-tr-none' : 'bg-white/5 border-white/10 text-slate-200 rounded-tl-none'}`}>
-                           <p className="font-bold leading-tight">{msg.text}</p>
-                         </div>
-                       </div>
-                     )}
+                     </div>
                    </div>
                  ))}
                  <div ref={chatEndRef} />
@@ -470,9 +471,9 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                 <Shield className="w-5 h-5 sm:w-7 sm:h-7 text-cyan-400" />
               </div>
               <div className="flex-1 min-w-0 max-h-[60px] sm:max-h-[80px] overflow-y-auto custom-scrollbar flex flex-col justify-center">
-                {chatMessages.filter(m => m.type === 'system').length === 0 ? (
+                {systemMessages.length === 0 ? (
                   <p className="text-sm sm:text-base text-slate-500 italic font-medium tracking-wide">Bolibot ready to dominate the auction...</p>
-                ) : chatMessages.filter(m => m.type === 'system').slice(-3).map((msg) => (
+                ) : systemMessages.slice(-3).map((msg) => (
                   <p key={msg.id} className="text-sm sm:text-base font-black text-white leading-tight animate-in slide-in-from-left-2 duration-200 truncate tracking-tight">{msg.text}</p>
                 ))}
               </div>
