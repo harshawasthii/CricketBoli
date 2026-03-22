@@ -482,7 +482,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
           </div>
 
           {/* ─ Center: Arena ─ */}
-          <div className="lg:col-span-6 flex flex-col gap-2 sm:gap-2.5 min-h-[70vh] lg:min-h-0 h-auto lg:h-full order-2 lg:order-2">
+          <div className="lg:col-span-6 flex flex-col gap-2 sm:gap-2.5 min-h-[70vh] lg:min-h-0 h-auto lg:h-full order-1 lg:order-2">
             
             {/* Bolibot — SHARP (Expanded) */}
             <div className="bg-[#0D1424] rounded-xl border border-cyan-500/20 flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-3 sm:py-5 shrink-0 shadow-[0_0_40px_-10px_rgba(34,211,238,0.2)]">
@@ -558,7 +558,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
           </div>
 
           {/* ─ Right: Controls & Feed ─ */}
-          <div className="lg:col-span-3 flex flex-col gap-2 sm:gap-2.5 lg:h-full min-h-0 order-1 lg:order-3">
+          <div className="lg:col-span-3 flex flex-col gap-2 sm:gap-2.5 lg:h-full min-h-0 order-2 lg:order-3">
 
             {/* Mobile-only: Competitors with expandable rosters */}
             <div className="lg:hidden bg-[#0D1424]/70 rounded-xl p-3 border border-white/[0.04]">
