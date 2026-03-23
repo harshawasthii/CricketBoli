@@ -699,7 +699,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                       <button onClick={handleMarkUnsold} className="bg-rose-500/8 text-rose-400 border border-rose-500/15 py-2 rounded-lg font-bold text-[9px] tracking-wider flex items-center justify-center gap-1"><XCircle className="w-3 h-3" /> UNSOLD</button>
                     </div>
                   )}
-                  {mainPlayersRemaining === 0 && (
+                  {!currentPlayer && (
                     <div className="flex gap-1.5 mt-2">
                       <button 
                         onClick={handleToggleOptionRound} 
