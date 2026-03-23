@@ -10,10 +10,15 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
     const { playerId, buyerId, amount } = await req.json();
     const { roomId } = params; // Room code
 
-    const { data: room } = await supabase.from('rooms').select('id, admin_id').eq('code', roomId).single();
+    const { data: room } = await supabase.from('rooms').select('id, admin_id, current_bid, highest_bidder_id').eq('code', roomId).single();
     if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     if (room.admin_id !== user.id) {
         return NextResponse.json({ error: 'Only admin can finalize sales' }, { status: 403 });
+    }
+
+    // Safety check: has a new bid arrived since the admin's UI decided to sell?
+    if (Number(room.current_bid) !== Number(amount) || String(room.highest_bidder_id) !== String(buyerId)) {
+        return NextResponse.json({ error: 'A new bid was placed! Sale cancelled.' }, { status: 409 });
     }
 
     // Insert into rosters

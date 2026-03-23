@@ -11,8 +11,10 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
     const { roomId } = params; // Room code
 
     // Validation
-    const { data: room } = await supabase.from('rooms').select('id, status').eq('code', roomId).single();
+    const { data: room } = await supabase.from('rooms').select('id, status, current_player_id').eq('code', roomId).single();
     if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+    if (room.status === 'COMPLETED') return NextResponse.json({ error: 'Auction already ended' }, { status: 400 });
+    if (room.current_player_id !== playerId) return NextResponse.json({ error: 'This player is no longer active' }, { status: 400 });
 
     const { data: membership } = await supabase.from('room_participants')
       .select('budget')

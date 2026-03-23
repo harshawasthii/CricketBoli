@@ -10,10 +10,15 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
     const { playerId } = await req.json();
     const { roomId } = params; // Room code
 
-    const { data: room } = await supabase.from('rooms').select('id, admin_id').eq('code', roomId).single();
+    const { data: room } = await supabase.from('rooms').select('id, admin_id, highest_bidder_id').eq('code', roomId).single();
     if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     if (room.admin_id !== user.id) {
         return NextResponse.json({ error: 'Only admin can mark unsold' }, { status: 403 });
+    }
+
+    // Safety check: if there's a bidder, it cannot be unsold!
+    if (room.highest_bidder_id) {
+        return NextResponse.json({ error: 'A bid was placed! Cannot mark as unsold.' }, { status: 409 });
     }
 
     // Insert into unsold
