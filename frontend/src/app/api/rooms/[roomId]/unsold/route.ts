@@ -16,10 +16,6 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
         return NextResponse.json({ error: 'Only admin can mark unsold' }, { status: 403 });
     }
 
-    // Safety check: if there's a bidder, it cannot be unsold!
-    if (room.highest_bidder_id) {
-        return NextResponse.json({ error: 'A bid was placed! Cannot mark as unsold.' }, { status: 409 });
-    }
 
     // Insert into unsold
     const { error: unsoldErr } = await supabase.from('unsold_players').upsert({

@@ -829,7 +829,14 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                         }} 
                         className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-2 rounded-lg font-bold text-[9px] tracking-wider flex items-center justify-center gap-1 disabled:opacity-20 transition-all font-black"
                       ><CheckCircle2 className="w-3 h-3" /> SOLD</button>
-                      <button onClick={handleMarkUnsold} className="bg-rose-500/8 text-rose-400 border border-rose-500/15 py-2 rounded-lg font-bold text-[9px] tracking-wider flex items-center justify-center gap-1"><XCircle className="w-3 h-3" /> UNSOLD</button>
+                      <button 
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to mark ${currentPlayer?.name} as UNSOLD?`)) {
+                            handleMarkUnsold();
+                          }
+                        }} 
+                        className="bg-rose-500/8 text-rose-400 border border-rose-500/15 py-2 rounded-lg font-bold text-[9px] tracking-wider flex items-center justify-center gap-1"
+                      ><XCircle className="w-3 h-3" /> UNSOLD</button>
                     </div>
                   )}
                   {!currentPlayer && (
