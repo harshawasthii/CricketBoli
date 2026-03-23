@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { fetchWithAuth } from '@/lib/api';
-import { History, Users, Wallet, Megaphone, CheckCircle2, Pause, ChevronRight, User, PlayCircle, XCircle, Zap, Shield, MessageSquare, Send } from 'lucide-react';
+import { History, Users, Wallet, Megaphone, CheckCircle2, Pause, ChevronRight, User, PlayCircle, XCircle, Zap, Shield, MessageSquare, Send, Clock } from 'lucide-react';
 
 export default function RoomPage({ params }: { params: { code: string } }) {
   const router = useRouter();
@@ -28,6 +28,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const [msgInput, setMsgInput] = useState('');
   const [turnUserId, setTurnUserId] = useState<string | null>(null);
   const [tappedOutIds, setTappedOutIds] = useState<string[]>([]);
+  const [turnTimeLeft, setTurnTimeLeft] = useState(5);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const channelRef = useRef<any>(null);
@@ -117,6 +118,32 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const sendRoomUpdate = (newState: any) => {
     channelRef.current?.send({ type: 'broadcast', event: 'auction_update', payload: newState });
   };
+
+  useEffect(() => {
+    if (!turnUserId || auctionState.status === 'PAUSED') return;
+    setTurnTimeLeft(5);
+    const interval = setInterval(() => {
+      setTurnTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          if (String(user?.id) === String(turnUserId)) handleNoBid();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [turnUserId, auctionState.status, user?.id]);
+
+  useEffect(() => {
+    if (!isAdminRef.current || !turnUserId || auctionState.status === 'PAUSED') return;
+    const fallback = setTimeout(() => {
+      // Force skip if turn stuck for 8s
+      moveTurn(tappedOutIds);
+    }, 8000);
+    return () => clearTimeout(fallback);
+  }, [turnUserId, tappedOutIds, auctionState.status]);
 
   const startAdminTimer = useCallback(() => {
     // Obsolete in turn-based mode, but keeping signature for now
@@ -213,7 +240,10 @@ export default function RoomPage({ params }: { params: { code: string } }) {
         // Admin Observer: If the auction is over (turnUserId is null), finalize it!
         if (isAdminRef.current && payload.turnUserId === null && liveAuctionRef.current.current_player_id) {
            const survivors = leaderboardRef.current.filter(l => !payload.tappedOutIds.includes(String(l.user.id)));
-           if (survivors.length <= 1) {
+           if (survivors.length === 1) {
+              const winnerId = String(survivors[0].user.id);
+              finalizePlayerFromRef({ ...liveAuctionRef.current, highest_bidder_id: winnerId });
+           } else if (survivors.length === 0) {
               if (liveAuctionRef.current.highest_bidder_id) finalizePlayerFromRef(liveAuctionRef.current);
               else handleMarkUnsold();
            }
@@ -317,6 +347,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const handlePlaceBid = async (forcedAmount?: number) => {
     if (bidCooldown || auctionState.status === 'PAUSED') return;
     if (turnUserId && String(user?.id) !== String(turnUserId)) { setErrorToast("It's not your turn!"); return; }
+    if (tappedOutIds.includes(String(user?.id))) { setErrorToast("You have tapped out of this player!"); return; }
     if (String(auctionState.highest_bidder_id) === String(user?.id)) { setErrorToast('You are already the highest bidder!'); return; }
     
     const currentBid = liveAuctionRef.current.current_bid;
@@ -356,8 +387,8 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     const nextUserId = String(sorted[nextIndex].user.id);
     const survivors = sorted.filter(s => !currentTapped.includes(String(s.user.id)));
     
-    // Condition: Auction is over (Everyone tapped out OR Only 1 survivor who is the winner)
-    const isOver = survivors.length === 0 || (survivors.length === 1 && String(liveAuctionRef.current.highest_bidder_id) === String(survivors[0].user.id));
+    // Condition: Auction is over (Everyone tapped out OR Only 1 survivor remains)
+    const isOver = survivors.length <= 1;
     
     if (isOver) {
        setTurnUserId(null);
@@ -596,9 +627,15 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                       )}
                     </div>
                     {turnUserId && (
-                      <div className={`mb-3 py-2 px-4 rounded-lg border flex items-center justify-center gap-2 animate-in fade-in zoom-in duration-300 ${String(turnUserId) === String(user?.id) ? 'bg-amber-500 border-amber-400 text-black shadow-[0_0_20px_rgba(245,158,11,0.3)]' : 'bg-slate-800/50 border-white/5 text-slate-400'}`}>
-                        <Zap className={`w-4 h-4 ${String(turnUserId) === String(user?.id) ? 'animate-bounce' : ''}`} />
-                        <span className="text-xs font-black uppercase tracking-widest">{String(turnUserId) === String(user?.id) ? "IT'S YOUR TURN!" : `${leaderboard.find(l => String(l.user.id) === String(turnUserId))?.user.name || 'Competitor'}'s Turn`}</span>
+                      <div className={`mb-3 py-2 px-4 rounded-lg border flex items-center justify-between gap-2 animate-in fade-in zoom-in duration-300 ${String(turnUserId) === String(user?.id) ? 'bg-amber-500 border-amber-400 text-black shadow-[0_0_20px_rgba(245,158,11,0.3)]' : 'bg-slate-800/50 border-white/5 text-slate-400'}`}>
+                        <div className="flex items-center gap-2">
+                          <Zap className={`w-4 h-4 ${String(turnUserId) === String(user?.id) ? 'animate-bounce' : ''}`} />
+                          <span className="text-xs font-black uppercase tracking-widest">{String(turnUserId) === String(user?.id) ? "IT'S YOUR TURN!" : `${leaderboard.find(l => String(l.user.id) === String(turnUserId))?.user.name || 'Competitor'}'s Turn`}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-black/20 px-2 py-0.5 rounded-md">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span className="font-mono font-black text-sm">{turnTimeLeft}s</span>
+                        </div>
                       </div>
                     )}
                     <p className="text-[8px] sm:text-[9px] text-amber-500/60 mb-0.5 sm:mb-1 uppercase tracking-[0.25em] font-bold">Current Price</p>
