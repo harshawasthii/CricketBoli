@@ -413,8 +413,19 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     moveTurn(newTapped);
   };
 
-  const handlePause = () => { if (!isAdminRef.current) return; channelRef.current?.send({ type: 'broadcast', event: 'status_change', payload: { status: 'PAUSED' } }); if (timerIdRef.current) clearTimeout(timerIdRef.current); addBidduMessage('⏸️ Auction Paused'); };
-  const handleResume = () => { if (!isAdminRef.current) return; startAdminTimer(); addBidduMessage('▶️ Auction Resumed'); };
+  const handlePause = () => { 
+    if (!isAdminRef.current) return; 
+    setAuctionState((prev: any) => ({ ...prev, status: 'PAUSED' }));
+    channelRef.current?.send({ type: 'broadcast', event: 'status_change', payload: { status: 'PAUSED' } }); 
+    addBidduMessage('⏸️ Auction Paused'); 
+  };
+
+  const handleResume = () => { 
+    if (!isAdminRef.current) return; 
+    setAuctionState((prev: any) => ({ ...prev, status: 'IDLE' }));
+    channelRef.current?.send({ type: 'broadcast', event: 'status_change', payload: { status: 'IDLE' } }); 
+    addBidduMessage('▶️ Auction Resumed'); 
+  };
   const handleMarkUnsold = () => { if (!isAdminRef.current) return; liveAuctionRef.current = { ...liveAuctionRef.current, highest_bidder_id: null }; finalizePlayerFromRef({ ...liveAuctionRef.current, highest_bidder_id: null }); };
   const handleStartNextPlayer = () => { if (!isAdminRef.current || !availablePlayers) return; if (availablePlayers.length > 0) handleStartAuction(availablePlayers[0].id); else setErrorToast('No more players!'); };
 
