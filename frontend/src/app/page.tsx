@@ -253,12 +253,12 @@ export default function Home() {
                   <Trophy className="w-5 h-5 text-amber-400" /> Current Battles
                 </h3>
                 <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 sm:space-y-4">
-                  {(!myRooms || myRooms.filter(r => r.status !== 'COMPLETED').length === 0) ? (
+                  {(!myRooms || myRooms.filter(r => r.status !== 'COMPLETED' && r.status !== 'ENDED').length === 0) ? (
                     <div className="h-28 sm:h-40 flex flex-col items-center justify-center opacity-40 border-2 border-dashed border-slate-800 rounded-2xl sm:rounded-3xl p-4 text-center">
                       <p className="text-slate-500 text-xs font-bold italic leading-relaxed">No active <br/> auctions.</p>
                     </div>
                   ) : (
-                    myRooms.filter(r => r.status !== 'COMPLETED').map(room => (
+                    myRooms.filter(r => r.status !== 'COMPLETED' && r.status !== 'ENDED').map(room => (
                       <div key={room.id} onClick={() => router.push(`/room/${room.code}`)} className="group cursor-pointer bg-slate-800/40 hover:bg-slate-700/60 border border-slate-700/50 p-3 sm:p-4 rounded-xl transition-all shadow-md flex justify-between items-center">
                         <div className="min-w-0 pr-3 sm:pr-4">
                           <h4 className="text-lg sm:text-xl font-black text-white group-hover:text-blue-400 transition-colors uppercase tracking-tight truncate">{room.code}</h4>
@@ -285,12 +285,12 @@ export default function Home() {
                   <Archive className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" /> Hall of Fame
                 </h3>
                 <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 sm:space-y-4">
-                  {(myRooms.filter(r => r.status === 'COMPLETED').length === 0) ? (
+                  {(myRooms.filter(r => r.status === 'COMPLETED' || r.status === 'ENDED').length === 0) ? (
                     <div className="h-28 sm:h-40 flex flex-col items-center justify-center opacity-40 border-2 border-dashed border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-8 text-center">
                       <p className="text-slate-500 text-xs sm:text-sm font-bold italic leading-relaxed">Completed auctions <br/> appear here.</p>
                     </div>
                   ) : (
-                    myRooms.filter(r => r.status === 'COMPLETED').map((room) => (
+                    myRooms.filter(r => r.status === 'COMPLETED' || r.status === 'ENDED').map((room) => (
                       <div key={room.id} onClick={() => openScoreboard(room)} className="group/card cursor-pointer bg-slate-800/30 hover:bg-amber-500/5 border border-amber-500/10 p-3 sm:p-5 rounded-xl sm:rounded-2xl transition-all relative overflow-hidden">
                         <div className="absolute inset-x-0 bottom-0 h-1 bg-amber-500/0 group-hover/card:bg-amber-500/20 transition-all blur-md" />
                         <div className="flex justify-between items-start mb-2 sm:mb-4">
