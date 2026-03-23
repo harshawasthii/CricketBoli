@@ -240,12 +240,11 @@ export default function RoomPage({ params }: { params: { code: string } }) {
         // Admin Observer: If the auction is over (turnUserId is null), finalize it!
         if (isAdminRef.current && payload.turnUserId === null && liveAuctionRef.current.current_player_id) {
            const survivors = leaderboardRef.current.filter(l => !payload.tappedOutIds.includes(String(l.user.id)));
-           if (survivors.length === 1) {
-              const winnerId = String(survivors[0].user.id);
-              finalizePlayerFromRef({ ...liveAuctionRef.current, highest_bidder_id: winnerId });
+           
+           if (liveAuctionRef.current.highest_bidder_id) {
+              finalizePlayerFromRef(liveAuctionRef.current);
            } else if (survivors.length === 0) {
-              if (liveAuctionRef.current.highest_bidder_id) finalizePlayerFromRef(liveAuctionRef.current);
-              else handleMarkUnsold();
+              handleMarkUnsold();
            }
         }
       })
@@ -387,8 +386,8 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     const nextUserId = String(sorted[nextIndex].user.id);
     const survivors = sorted.filter(s => !currentTapped.includes(String(s.user.id)));
     
-    // Condition: Auction is over (Everyone tapped out OR Only 1 survivor remains)
-    const isOver = survivors.length <= 1;
+    // Condition: Auction is over (Everyone tapped out OR Only 1 survivor who is the winner)
+    const isOver = survivors.length === 0 || (survivors.length === 1 && liveAuctionRef.current.highest_bidder_id);
     
     if (isOver) {
        setTurnUserId(null);
