@@ -222,9 +222,9 @@ export default function RoomPage({ params }: { params: { code: string } }) {
         setOptionRoundActive(payload.active);
         addBidduMessage(payload.active ? '✨ Optional Round is now ACTIVE!' : '✨ Optional Round is deactivated.');
       })
-      .on('broadcast', { event: 'auction_ended' }, () => {
-        setRoomDetails((prev: any) => ({ ...prev, status: 'ENDED' }));
-        addBidduMessage('🏁 THE AUCTION HAS ENDED!');
+      .on('broadcast', { event: 'auction_completed' }, () => {
+        setRoomDetails((prev: any) => ({ ...prev, status: 'COMPLETED' }));
+        addBidduMessage('🏁 THE AUCTION HAS COMPLETED!');
       })
       .on('broadcast', { event: 'player_unsold' }, ({ payload }) => {
         setSoldEvents(prev => [...prev, { playerId: payload.playerId, amount: 0, isUnsold: true, feedOrder: feedIndexRef.current++ }]);
@@ -360,13 +360,13 @@ export default function RoomPage({ params }: { params: { code: string } }) {
 
   const handleEndAuction = async () => {
     if (!isAdminRef.current) return;
-    if (!confirm('Are you sure you want to END the auction? This will disable all bidding.')) return;
+    if (!confirm('Are you sure you want to COMPLETE the auction? This will disable all bidding.')) return;
     try {
       await fetchWithAuth(`/rooms/${params.code}/end`, { method: 'POST' });
-      setRoomDetails((prev: any) => ({ ...prev, status: 'ENDED' }));
-      channelRef.current?.send({ type: 'broadcast', event: 'auction_ended', payload: {} });
-      addBidduMessage('🏁 Auction ended by Admin');
-    } catch (e) { setErrorToast('Failed to end auction'); }
+      setRoomDetails((prev: any) => ({ ...prev, status: 'COMPLETED' }));
+      channelRef.current?.send({ type: 'broadcast', event: 'auction_completed', payload: {} });
+      addBidduMessage('🏁 Auction completed by Admin');
+    } catch (e) { setErrorToast('Failed to complete auction'); }
   };
 
   const formatPrice = (amt: number) => {
@@ -571,12 +571,12 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                       {[10, 30, 50, 75, 100].map((v) => (
                         <button 
                           key={v} onClick={() => handlePlaceBid(liveAuctionRef.current.current_bid + (v * 100000))} 
-                          disabled={auctionState.status === 'PAUSED' || bidCooldown || roomDetails.status === 'ENDED'}
+                          disabled={auctionState.status === 'PAUSED' || bidCooldown || roomDetails.status === 'COMPLETED'}
                           className={`bg-white/[0.03] border border-white/[0.06] hover:border-amber-400/50 hover:bg-amber-400/5 text-white hover:text-amber-400 rounded-lg py-2.5 sm:py-3 font-bold text-xs sm:text-[10px] transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed`}
                         ><span className="text-[7px] text-slate-600 block leading-none mb-0.5">+</span>{v}L</button>
                       ))}
                     </div>
-                    {!auctionState.highest_bidder_id && !bidCooldown && auctionState.status !== 'PAUSED' && roomDetails.status !== 'ENDED' && (
+                    {!auctionState.highest_bidder_id && !bidCooldown && auctionState.status !== 'PAUSED' && roomDetails.status !== 'COMPLETED' && (
                       <button onClick={() => handlePlaceBid(liveAuctionRef.current.current_bid)} className="w-full mt-2 py-2.5 sm:py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition-all text-xs sm:sm">OPEN BID AT BASE</button>
                     )}
                     {bidCooldown && <p className="mt-1.5 sm:mt-2 text-center text-amber-500/40 text-[8px] sm:text-[9px] font-bold uppercase tracking-wider animate-pulse">⏳ Cooldown 2.5s</p>}
@@ -680,7 +680,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
             </div>
             
             {/* Admin Panel */}
-            {isAdmin && roomDetails.status !== 'ENDED' && (
+            {isAdmin && roomDetails.status !== 'COMPLETED' && (
               <div className="bg-[#0D1424]/70 rounded-xl p-3 sm:p-4 border border-emerald-500/15 shrink-0">
                 <div className="flex justify-between items-center mb-2 sm:mb-3">
                   <h3 className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.15em]">Admin 🕹️</h3>
@@ -707,14 +707,14 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                       >
                         {optionRoundActive ? 'Option Round ON' : 'Start Option Round'}
                       </button>
-                      <button onClick={handleEndAuction} className="flex-1 bg-rose-600 hover:bg-rose-500 text-white py-2.5 rounded-lg font-bold text-[10px] uppercase transition-all">End Auction</button>
+                      <button onClick={handleEndAuction} className="flex-1 bg-rose-600 hover:bg-rose-500 text-white py-2.5 rounded-lg font-bold text-[10px] uppercase transition-all">Complete Auction</button>
                     </div>
                   )}
                 </div>
               </div>
             )}
             
-            {roomDetails.status === 'ENDED' && (
+            {roomDetails.status === 'COMPLETED' && (
               <div className="bg-gradient-to-br from-rose-500/20 to-indigo-600/20 rounded-xl p-4 border border-white/10 shrink-0 text-center shadow-xl">
                  <h3 className="text-lg font-black text-white italic tracking-tighter mb-1 uppercase">Auction Completed</h3>
                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-3">All players auctioned • Teams finalized</p>

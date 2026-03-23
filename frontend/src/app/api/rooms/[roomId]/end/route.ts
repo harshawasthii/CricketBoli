@@ -15,9 +15,9 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
         return NextResponse.json({ error: 'Only admin can end the auction' }, { status: 403 });
     }
 
-    // Update room status to ENDED
+    // Update room status to COMPLETED
     const { error: updateErr } = await supabase.from('rooms').update({
-      status: 'ENDED',
+      status: 'COMPLETED',
       current_player_id: null,
       current_bid: 0,
       highest_bidder_id: null
