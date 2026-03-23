@@ -25,6 +25,9 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
     });
 
     if (rosterErr) throw rosterErr;
+    
+    // Remove from unsold if exists (Optional Round Fix)
+    await supabase.from('unsold_players').delete().eq('room_id', room.id).eq('player_id', playerId);
 
     // Update budget
     const { data: participant } = await supabase.from('room_participants')
