@@ -159,12 +159,16 @@ export default function RoomPage({ params }: { params: { code: string } }) {
         channelRef.current?.send({ type: 'broadcast', event: 'player_sold', payload: { playerId: live.current_player_id, userId: live.highest_bidder_id, amount: live.current_bid } });
         channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: msgSold });
         addBidduMessage(msgSold);
+        // Admin Local Update
+        setSoldEvents(prev => [...prev, { playerId: live.current_player_id, userId: live.highest_bidder_id, amount: live.current_bid, isUnsold: false, feedOrder: feedIndexRef.current++ }]);
       } else {
         await fetchWithAuth(`/rooms/${params.code}/unsold`, { method: 'POST', body: JSON.stringify({ playerId: live.current_player_id }) });
         const msgUnsold = '❌ Player UNSOLD!';
         channelRef.current?.send({ type: 'broadcast', event: 'player_unsold', payload: { playerId: live.current_player_id } });
         channelRef.current?.send({ type: 'broadcast', event: 'biddu_msg', payload: msgUnsold });
         addBidduMessage(msgUnsold);
+        // Admin Local Update
+        setSoldEvents(prev => [...prev, { playerId: live.current_player_id!, amount: 0, isUnsold: true, feedOrder: feedIndexRef.current++ }]);
       }
       const resetState = { current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' };
       liveAuctionRef.current = { current_player_id: null, current_bid: 0, highest_bidder_id: null };
