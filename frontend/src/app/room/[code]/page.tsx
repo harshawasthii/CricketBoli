@@ -146,7 +146,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
           }, 3000);
         }, 2000);
       }, 2000);
-    }, 7000);
+    }, 5000);
   }, []);
 
   const finalizePlayerFromRef = async (live: { current_player_id: number | null, current_bid: number, highest_bidder_id: string | null }) => {
@@ -337,6 +337,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       // Announce own bid via Bolibot (broadcast self:false means sender won't receive new_bid)
       addBidduMessage(`🚀 You bid ${formatPrice(amt)}`);
       playSfx('bid');
+      if (isAdminRef.current) startAdminTimer();
     } catch (err: any) { 
       setErrorToast(err.message || 'Bid Failed');
       if (err.message?.toLowerCase().includes('database') || err.status === 500) {
