@@ -407,6 +407,10 @@ export default function RoomPage({ params }: { params: { code: string } }) {
 
   const handleTapOut = () => {
     if (String(user?.id) !== String(turnUserId)) return;
+    if (String(auctionState.highest_bidder_id) === String(user?.id)) {
+       setErrorToast("You are the highest bidder! You cannot tap out.");
+       return;
+    }
     const newTapped = [...tappedOutIds, String(user.id)];
     setTappedOutIds(newTapped);
     addBidduMessage(`✋ ${user.name} TAPPED OUT (Folded)`);
@@ -686,7 +690,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                               className="flex-1 py-2.5 sm:py-3 bg-slate-800 hover:bg-slate-700 text-white font-black border border-white/10 rounded-lg transition-all text-xs uppercase tracking-widest disabled:opacity-20"
                            >No Bid</button>
                            <button 
-                              disabled={!!(String(user?.id) !== String(turnUserId) || tappedOutIds.includes(String(user?.id)))}
+                              disabled={!!(String(user?.id) !== String(turnUserId) || tappedOutIds.includes(String(user?.id)) || (String(auctionState.highest_bidder_id) === String(user?.id)))}
                               onClick={handleTapOut} 
                               className="flex-1 py-2.5 sm:py-3 bg-rose-900/40 hover:bg-rose-800/60 text-white font-black border border-rose-500/20 rounded-lg transition-all text-xs uppercase tracking-widest disabled:opacity-20 shadow-lg shadow-rose-900/20"
                            >Tap Out</button>
