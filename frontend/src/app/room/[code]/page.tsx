@@ -27,7 +27,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const [systemMessages, setSystemMessages] = useState<any[]>([]);
   const [msgInput, setMsgInput] = useState('');
   const [turnUserId, setTurnUserId] = useState<string | null>(null);
-  const [passedUserIds, setPassedUserIds] = useState<string[]>([]);
+  const [tappedOutIds, setTappedOutIds] = useState<string[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const channelRef = useRef<any>(null);
@@ -182,7 +182,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
         setSoldEvents(prev => [...prev, { ...payload, isUnsold: false, feedOrder: feedIndexRef.current++ }]);
         liveAuctionRef.current = { current_player_id: null, current_bid: 0, highest_bidder_id: null };
         setAuctionState({ current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' });
-        setTurnUserId(null); setPassedUserIds([]);
+        setTurnUserId(null); setTappedOutIds([]);
         playSfx('sold');
         setTimeout(initRoom, 500);
       })
@@ -204,17 +204,17 @@ export default function RoomPage({ params }: { params: { code: string } }) {
         setSoldEvents(prev => [...prev, { playerId: payload.playerId, amount: 0, isUnsold: true, feedOrder: feedIndexRef.current++ }]);
         liveAuctionRef.current = { current_player_id: null, current_bid: 0, highest_bidder_id: null };
         setAuctionState({ current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' });
-        setPassedUserIds([]); setTurnUserId(null);
+        setTappedOutIds([]); setTurnUserId(null);
       })
       .on('broadcast', { event: 'turn_update' }, ({ payload }) => {
         setTurnUserId(payload.turnUserId);
-        setPassedUserIds(payload.passedUserIds);
+        setTappedOutIds(payload.tappedOutIds);
       })
       // Sync mechanism: when a user requests sync, admin responds with current state
       .on('broadcast', { event: 'request_sync' }, () => {
         if (isAdminRef.current && liveAuctionRef.current.current_player_id) {
           const live = liveAuctionRef.current;
-          channel.send({ type: 'broadcast', event: 'sync_state', payload: { current_player_id: live.current_player_id, current_bid: live.current_bid, highest_bidder_id: live.highest_bidder_id, status: 'PAUSED', turnUserId, passedUserIds } });
+          channel.send({ type: 'broadcast', event: 'sync_state', payload: { current_player_id: live.current_player_id, current_bid: live.current_bid, highest_bidder_id: live.highest_bidder_id, status: 'PAUSED', turnUserId, tappedOutIds } });
         }
       })
       // Sync mechanism: when sync_state is received, update local state (only if we don't already have a player)
@@ -223,7 +223,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
           if (!prev.current_player_id && payload.current_player_id) {
             liveAuctionRef.current = { current_player_id: payload.current_player_id, current_bid: payload.current_bid, highest_bidder_id: payload.highest_bidder_id };
             setTurnUserId(payload.turnUserId || null);
-            setPassedUserIds(payload.passedUserIds || []);
+            setTappedOutIds(payload.tappedOutIds || []);
             addBidduMessage('🔄 Synced with auction — welcome back!');
             return payload;
           }
@@ -236,7 +236,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
           setTimeout(() => {
             const live = liveAuctionRef.current;
             if (live.current_player_id) {
-              channel.send({ type: 'broadcast', event: 'sync_state', payload: { current_player_id: live.current_player_id, current_bid: live.current_bid, highest_bidder_id: live.highest_bidder_id, status: 'PAUSED', turnUserId, passedUserIds } });
+              channel.send({ type: 'broadcast', event: 'sync_state', payload: { current_player_id: live.current_player_id, current_bid: live.current_bid, highest_bidder_id: live.highest_bidder_id, status: 'PAUSED', turnUserId, tappedOutIds } });
             }
           }, 500);
         }
@@ -285,8 +285,8 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     const sortedLead = [...leaderboard].sort((a,b) => String(a.user.id).localeCompare(String(b.user.id)));
     const firstBidder = sortedLead[0]?.user.id;
     setTurnUserId(firstBidder);
-    setPassedUserIds([]);
-    channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: firstBidder, passedUserIds: [] } });
+    setTappedOutIds([]);
+    channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: firstBidder, tappedOutIds: [] } });
     
     // Persist to DB immediately
     fetchWithAuth(`/rooms/${params.code}/start`, {
@@ -325,53 +325,62 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       addBidduMessage(`🚀 You bid ${formatPrice(amt)}`);
       playSfx('bid');
       
-      // Clear passing status for everyone else if someone bids? 
-      // No, usually in these auctions if you pass once, you're out for that player.
-      // But if the user wants "chance by chance", maybe you can come back?
-      // "if one person does not want ot bid there will be a button for no bid" 
-      // Usually "No Bid" in a circular auction means you are OUT for this player.
-      moveTurn(passedUserIds);
+      // Circular turn moves to next person who hasn't tapped out
+      moveTurn(tappedOutIds);
     } catch (err: any) { 
       setErrorToast(err.message || 'Bid Failed');
     }
   };
 
-  const moveTurn = (currentPassed: string[]) => {
+  const moveTurn = (currentTapped: string[]) => {
     const sorted = [...leaderboard].sort((a,b) => String(a.user.id).localeCompare(String(b.user.id)));
     if (sorted.length === 0) return;
     
     const currentIndex = sorted.findIndex(l => String(l.user.id) === String(turnUserId));
     let nextIndex = (currentIndex + 1) % sorted.length;
     let loops = 0;
-    while (currentPassed.includes(String(sorted[nextIndex].user.id)) && loops < sorted.length) {
+    while (currentTapped.includes(String(sorted[nextIndex].user.id)) && loops < sorted.length) {
       nextIndex = (nextIndex + 1) % sorted.length;
       loops++;
     }
 
     const nextUserId = String(sorted[nextIndex].user.id);
-    const activeParticipants = sorted.filter(s => !currentPassed.includes(String(s.user.id)));
+    const survivors = sorted.filter(s => !currentTapped.includes(String(s.user.id)));
     
-    // If only one person left AND they are already the highest bidder, they win!
-    if (activeParticipants.length <= 1) {
-       if (liveAuctionRef.current.highest_bidder_id) {
-          if (isAdminRef.current) finalizePlayerFromRef(liveAuctionRef.current);
-       } else {
-          if (isAdminRef.current) handleMarkUnsold();
+    // Condition 1: Only one person remains AND they are already the winner
+    if (survivors.length === 1 && String(liveAuctionRef.current.highest_bidder_id) === String(survivors[0].user.id)) {
+       if (isAdminRef.current) finalizePlayerFromRef(liveAuctionRef.current);
+       setTurnUserId(null);
+       channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: null, tappedOutIds: currentTapped } });
+    } 
+    // Condition 2: Everyone has tapped out
+    else if (survivors.length === 0) {
+       if (isAdminRef.current) {
+          if (liveAuctionRef.current.highest_bidder_id) finalizePlayerFromRef(liveAuctionRef.current);
+          else handleMarkUnsold();
        }
        setTurnUserId(null);
-       channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: null, passedUserIds: currentPassed } });
-    } else {
+       channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: null, tappedOutIds: currentTapped } });
+    }
+    // Condition 3: Continue the turn circle
+    else {
        setTurnUserId(nextUserId);
-       channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: nextUserId, passedUserIds: currentPassed } });
+       channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: nextUserId, tappedOutIds: currentTapped } });
     }
   };
 
   const handleNoBid = () => {
     if (String(user?.id) !== String(turnUserId)) return;
-    const newPassed = [...passedUserIds, String(user.id)];
-    setPassedUserIds(newPassed);
-    addBidduMessage(`✋ You passed`);
-    moveTurn(newPassed);
+    addBidduMessage(`🤝 ${user.name} skipped turn`);
+    moveTurn(tappedOutIds);
+  };
+
+  const handleTapOut = () => {
+    if (String(user?.id) !== String(turnUserId)) return;
+    const newTapped = [...tappedOutIds, String(user.id)];
+    setTappedOutIds(newTapped);
+    addBidduMessage(`✋ ${user.name} TAPPED OUT (Folded)`);
+    moveTurn(newTapped);
   };
 
   const handlePause = () => { if (!isAdminRef.current) return; channelRef.current?.send({ type: 'broadcast', event: 'status_change', payload: { status: 'PAUSED' } }); if (timerIdRef.current) clearTimeout(timerIdRef.current); addBidduMessage('⏸️ Auction Paused'); };
@@ -483,7 +492,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                 {leaderboard.map((member) => {
                   const memberPlayers = players.filter(p => soldEvents.some(s => s.playerId === p.id && String(s.userId) === String(member.user.id) && !s.isUnsold));
                   const isTurn = String(member.user.id) === String(turnUserId);
-                  const hasPassed = passedUserIds.includes(String(member.user.id));
+                  const hasPassed = tappedOutIds.includes(String(member.user.id));
                   return (
                     <div key={member.user.id} className={`p-3 rounded-lg border transition-all relative ${isTurn ? 'ring-2 ring-amber-500 bg-amber-500/10 border-amber-500/50' : String(member.user.id) === String(user?.id) ? 'bg-indigo-500/8 border-indigo-500/25' : 'bg-white/[0.02] border-white/[0.04]'} ${hasPassed ? 'opacity-40 grayscale' : ''}`}>
                       {isTurn && <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-8 bg-amber-500 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.5)]" />}
@@ -623,11 +632,18 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                          >OPEN BID AT BASE</button>
                        )}
                        {auctionState.current_player_id && !bidCooldown && auctionState.status !== 'PAUSED' && roomDetails.status !== 'COMPLETED' && (
-                         <button 
-                            disabled={!!(String(user?.id) !== String(turnUserId) || passedUserIds.includes(String(user?.id)))}
-                            onClick={handleNoBid} 
-                            className="flex-1 py-2.5 sm:py-3 bg-slate-800 hover:bg-slate-700 text-white font-black border border-white/10 rounded-lg transition-all text-xs uppercase tracking-widest disabled:opacity-20"
-                         >No Bid</button>
+                         <>
+                           <button 
+                              disabled={!!(String(user?.id) !== String(turnUserId) || tappedOutIds.includes(String(user?.id)))}
+                              onClick={handleNoBid} 
+                              className="flex-1 py-2.5 sm:py-3 bg-slate-800 hover:bg-slate-700 text-white font-black border border-white/10 rounded-lg transition-all text-xs uppercase tracking-widest disabled:opacity-20"
+                           >No Bid</button>
+                           <button 
+                              disabled={!!(String(user?.id) !== String(turnUserId) || tappedOutIds.includes(String(user?.id)))}
+                              onClick={handleTapOut} 
+                              className="flex-1 py-2.5 sm:py-3 bg-rose-900/40 hover:bg-rose-800/60 text-white font-black border border-rose-500/20 rounded-lg transition-all text-xs uppercase tracking-widest disabled:opacity-20 shadow-lg shadow-rose-900/20"
+                           >Tap Out</button>
+                         </>
                        )}
                     </div>
                     {bidCooldown && <p className="mt-1.5 sm:mt-2 text-center text-amber-500/40 text-[8px] sm:text-[9px] font-bold uppercase tracking-wider animate-pulse">⏳ Cooldown 2.5s</p>}
@@ -652,7 +668,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                   const memberPlayers = players.filter(p => soldEvents.some(s => s.playerId === p.id && String(s.userId) === String(member.user.id) && !s.isUnsold));
                   const isExpanded = expandedMobileCompetitor === String(member.user.id);
                   const isTurn = String(member.user.id) === String(turnUserId);
-                  const hasPassed = passedUserIds.includes(String(member.user.id));
+                  const hasPassed = tappedOutIds.includes(String(member.user.id));
                   return (
                     <div key={member.user.id} className={`rounded-lg border transition-all ${isTurn ? 'ring-2 ring-amber-500 bg-amber-500/20 border-amber-500' : String(member.user.id) === String(user?.id) ? 'bg-indigo-500/8 border-indigo-500/25' : 'bg-white/[0.02] border-white/[0.04]'} ${hasPassed ? 'opacity-40' : ''}`}>
                       <button
