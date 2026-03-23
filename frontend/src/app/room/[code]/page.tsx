@@ -811,10 +811,15 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                     <button onClick={() => setIsAutoMode(!isAutoMode)} className={`px-2.5 sm:px-3 rounded-lg font-bold text-xs sm:text-sm border transition-all ${isAutoMode ? 'bg-blue-600 border-blue-400 text-white' : 'bg-white/[0.03] border-white/[0.06] text-slate-500 hover:text-white'}`}>AUTO</button>
                   </div>
                   {currentPlayer && (
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-3 gap-1.5">
                       {auctionState.status !== 'PAUSED' ? (
                         <button onClick={handlePause} className="bg-amber-500/8 text-amber-500 border border-amber-500/15 py-2 rounded-lg font-bold text-[9px] tracking-wider flex items-center justify-center gap-1"><Pause className="w-3 h-3" /> PAUSE</button>
                       ) : <button onClick={handleResume} className="bg-indigo-500/8 text-indigo-400 border border-indigo-500/15 py-2 rounded-lg font-bold text-[9px] tracking-wider flex items-center justify-center gap-1"><PlayCircle className="w-3 h-3" /> RESUME</button>}
+                      <button 
+                        disabled={!auctionState.highest_bidder_id}
+                        onClick={() => finalizePlayerFromRef(liveAuctionRef.current)} 
+                        className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 py-2 rounded-lg font-bold text-[9px] tracking-wider flex items-center justify-center gap-1 disabled:opacity-20 transition-all font-black"
+                      ><CheckCircle2 className="w-3 h-3" /> SOLD</button>
                       <button onClick={handleMarkUnsold} className="bg-rose-500/8 text-rose-400 border border-rose-500/15 py-2 rounded-lg font-bold text-[9px] tracking-wider flex items-center justify-center gap-1"><XCircle className="w-3 h-3" /> UNSOLD</button>
                     </div>
                   )}
