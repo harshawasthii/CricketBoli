@@ -209,6 +209,15 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       .on('broadcast', { event: 'turn_update' }, ({ payload }) => {
         setTurnUserId(payload.turnUserId);
         setTappedOutIds(payload.tappedOutIds);
+        
+        // Admin Observer: If the auction is over (turnUserId is null), finalize it!
+        if (isAdminRef.current && payload.turnUserId === null && liveAuctionRef.current.current_player_id) {
+           const survivors = leaderboardRef.current.filter(l => !payload.tappedOutIds.includes(String(l.user.id)));
+           if (survivors.length <= 1) {
+              if (liveAuctionRef.current.highest_bidder_id) finalizePlayerFromRef(liveAuctionRef.current);
+              else handleMarkUnsold();
+           }
+        }
       })
       // Sync mechanism: when a user requests sync, admin responds with current state
       .on('broadcast', { event: 'request_sync' }, () => {
@@ -347,23 +356,13 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     const nextUserId = String(sorted[nextIndex].user.id);
     const survivors = sorted.filter(s => !currentTapped.includes(String(s.user.id)));
     
-    // Condition 1: Only one person remains AND they are already the winner
-    if (survivors.length === 1 && String(liveAuctionRef.current.highest_bidder_id) === String(survivors[0].user.id)) {
-       if (isAdminRef.current) finalizePlayerFromRef(liveAuctionRef.current);
+    // Condition: Auction is over (Everyone tapped out OR Only 1 survivor who is the winner)
+    const isOver = survivors.length === 0 || (survivors.length === 1 && String(liveAuctionRef.current.highest_bidder_id) === String(survivors[0].user.id));
+    
+    if (isOver) {
        setTurnUserId(null);
        channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: null, tappedOutIds: currentTapped } });
-    } 
-    // Condition 2: Everyone has tapped out
-    else if (survivors.length === 0) {
-       if (isAdminRef.current) {
-          if (liveAuctionRef.current.highest_bidder_id) finalizePlayerFromRef(liveAuctionRef.current);
-          else handleMarkUnsold();
-       }
-       setTurnUserId(null);
-       channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: null, tappedOutIds: currentTapped } });
-    }
-    // Condition 3: Continue the turn circle
-    else {
+    } else {
        setTurnUserId(nextUserId);
        channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: nextUserId, tappedOutIds: currentTapped } });
     }
