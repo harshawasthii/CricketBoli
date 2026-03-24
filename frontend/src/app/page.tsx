@@ -47,7 +47,7 @@ export default function Home() {
     // Play trumpet on landing
     if (!trumpetAudioRef.current) {
       trumpetAudioRef.current = new Audio('/sfx/trumpet.mp3');
-      trumpetAudioRef.current.volume = 0.5;
+      trumpetAudioRef.current.volume = 0.1;
     }
     const playTrumpet = () => {
       trumpetAudioRef.current?.play().catch(() => {

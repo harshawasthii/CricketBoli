@@ -53,7 +53,10 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const playSfx = (type: 'bid' | 'sold' | 'click' | 'warning' | 'welcome') => {
     try {
       if (type === 'welcome') {
-        if (!welcomeAudioRef.current) welcomeAudioRef.current = new Audio('/sfx/welcome.mp3');
+        if (!welcomeAudioRef.current) {
+          welcomeAudioRef.current = new Audio('/sfx/welcome.mp3');
+          welcomeAudioRef.current.volume = 0.3;
+        }
         welcomeAudioRef.current.currentTime = 0;
         welcomeAudioRef.current.play().catch(() => {
            // Fallback for auto-play block
