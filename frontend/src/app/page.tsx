@@ -13,6 +13,7 @@ export default function Home() {
   const [createPassword, setCreatePassword] = useState('');
   const [myRooms, setMyRooms] = useState<any[]>([]);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const trumpetAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const playClick = () => {
     try {
@@ -41,6 +42,26 @@ export default function Home() {
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
   const [scoreboard, setScoreboard] = useState<any[]>([]);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Play trumpet on landing
+    if (!trumpetAudioRef.current) {
+      trumpetAudioRef.current = new Audio('/sfx/trumpet.mp3');
+    }
+    const playTrumpet = () => {
+      trumpetAudioRef.current?.play().catch(() => {
+        // Browser blocked auto-play, wait for interaction
+        const startOnInteraction = () => {
+          trumpetAudioRef.current?.play().catch(() => {});
+          window.removeEventListener('click', startOnInteraction);
+          window.removeEventListener('keydown', startOnInteraction);
+        };
+        window.addEventListener('click', startOnInteraction);
+        window.addEventListener('keydown', startOnInteraction);
+      });
+    };
+    playTrumpet();
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
