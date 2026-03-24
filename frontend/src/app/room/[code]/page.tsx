@@ -426,7 +426,17 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     
     if (isOver) {
        setTurnUserId(null);
-       channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: null, tappedOutIds: currentTapped } });
+       const payload = { turnUserId: null, tappedOutIds: currentTapped };
+       channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload });
+
+       // Admin Self-Trigger: Process finalization locally if we are the admin
+       if (isAdminRef.current && liveAuctionRef.current.current_player_id) {
+          if (liveAuctionRef.current.highest_bidder_id) {
+             finalizePlayerFromRef(liveAuctionRef.current);
+          } else if (survivors.length === 0) {
+             handleMarkUnsold();
+          }
+       }
     } else {
        setTurnUserId(nextUserId);
        channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: nextUserId, tappedOutIds: currentTapped } });
@@ -463,13 +473,8 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     setTappedOutIds(newTapped);
     addBidduMessage(`🚫 Admin forced ${leaderboard.find(l => String(l.user.id) === targetUserId)?.user.name} to FOLD`);
     
-    // If the person was the active bidder, move turn
-    if (String(turnUserId) === targetUserId) {
-       moveTurn(newTapped);
-    } else {
-       // Just broadcast the update
-       channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: turnUserId, tappedOutIds: newTapped } });
-    }
+    // Always move turn to handle shift and finalization checks
+    moveTurn(newTapped);
   };
 
   const handlePause = () => { 
