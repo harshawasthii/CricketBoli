@@ -15,6 +15,7 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   const [auctionState, setAuctionState] = useState<any>({ current_player_id: null, current_bid: 0, highest_bidder_id: null, status: 'IDLE' });
   const [soldEvents, setSoldEvents] = useState<any[]>([]);
   const [errorToast, setErrorToast] = useState('');
+  const welcomeAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [optionRoundActive, setOptionRoundActive] = useState(false);
   const [isAutoMode, setIsAutoMode] = useState(false);
@@ -49,8 +50,21 @@ export default function RoomPage({ params }: { params: { code: string } }) {
   // Sound Effects
   const audioCtxRef = useRef<AudioContext | null>(null);
   const getAudioCtx = () => { if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)(); return audioCtxRef.current; };
-  const playSfx = (type: 'bid' | 'sold' | 'click' | 'warning') => {
+  const playSfx = (type: 'bid' | 'sold' | 'click' | 'warning' | 'welcome') => {
     try {
+      if (type === 'welcome') {
+        if (!welcomeAudioRef.current) welcomeAudioRef.current = new Audio('/sfx/welcome.mp3');
+        welcomeAudioRef.current.currentTime = 0;
+        welcomeAudioRef.current.play().catch(() => {
+           // Fallback for auto-play block
+           const playOnInteraction = () => {
+              welcomeAudioRef.current?.play().catch(() => {});
+              window.removeEventListener('click', playOnInteraction);
+           };
+           window.addEventListener('click', playOnInteraction);
+        });
+        return;
+      }
       const ctx = getAudioCtx(); if (ctx.state === 'suspended') ctx.resume();
       const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination);
       if (type === 'click') { osc.type = 'sine'; osc.frequency.setValueAtTime(1200, ctx.currentTime); gain.gain.setValueAtTime(0.1, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05); osc.start(); osc.stop(ctx.currentTime + 0.06); }
@@ -144,6 +158,12 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     }, 8000);
     return () => clearTimeout(fallback);
   }, [turnUserId, tappedOutIds, auctionState.status]);
+
+  useEffect(() => {
+    if (user?.id && params.code) {
+      playSfx('welcome');
+    }
+  }, [user?.id, params.code]);
 
   const startAdminTimer = useCallback(() => {
     // Obsolete in turn-based mode, but keeping signature for now
