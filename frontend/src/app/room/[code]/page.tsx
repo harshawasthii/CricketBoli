@@ -451,6 +451,27 @@ export default function RoomPage({ params }: { params: { code: string } }) {
     moveTurn(newTapped);
   };
 
+  const handleAdminForceTapOut = (targetUserId: string) => {
+    if (!isAdminRef.current) return;
+    if (String(auctionState.highest_bidder_id) === String(targetUserId)) {
+      setErrorToast("Cannot fold the highest bidder!");
+      return;
+    }
+    if (tappedOutIds.includes(targetUserId)) return;
+
+    const newTapped = [...tappedOutIds, targetUserId];
+    setTappedOutIds(newTapped);
+    addBidduMessage(`🚫 Admin forced ${leaderboard.find(l => String(l.user.id) === targetUserId)?.user.name} to FOLD`);
+    
+    // If the person was the active bidder, move turn
+    if (String(turnUserId) === targetUserId) {
+       moveTurn(newTapped);
+    } else {
+       // Just broadcast the update
+       channelRef.current?.send({ type: 'broadcast', event: 'turn_update', payload: { turnUserId: turnUserId, tappedOutIds: newTapped } });
+    }
+  };
+
   const handlePause = () => { 
     if (!isAdminRef.current) return; 
     setAuctionState((prev: any) => ({ ...prev, status: 'PAUSED' }));
@@ -576,7 +597,16 @@ export default function RoomPage({ params }: { params: { code: string } }) {
                     <div key={member.user.id} className={`p-3 rounded-lg border transition-all relative ${isTurn ? 'ring-2 ring-amber-500 bg-amber-500/10 border-amber-500/50' : String(member.user.id) === String(user?.id) ? 'bg-indigo-500/8 border-indigo-500/25' : 'bg-white/[0.02] border-white/[0.04]'} ${hasPassed ? 'opacity-40 grayscale' : ''}`}>
                       {isTurn && <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-2 h-8 bg-amber-500 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.5)]" />}
                       <div className="flex justify-between items-center mb-1">
-                        <p className="text-xs font-bold text-white truncate pr-2">{member.user.name}</p>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="text-xs font-bold text-white truncate">{member.user.name}</p>
+                          {isAdmin && String(member.user.id) !== String(user?.id) && !hasPassed && (
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleAdminForceTapOut(String(member.user.id)); }}
+                              className="text-[8px] bg-rose-500/10 hover:bg-rose-500/30 text-rose-500 px-1.5 py-0.5 rounded border border-rose-500/20 transition-all font-black uppercase"
+                              title="Force Fold"
+                            >Fold</button>
+                          )}
+                        </div>
                         <span className="text-[10px] bg-black/40 font-mono text-slate-500 px-1.5 py-0.5 rounded shrink-0">{memberPlayers.length}/25</span>
                       </div>
                       <p className="text-[11px] text-emerald-400/80 font-bold">{formatPrice(member.budget)}</p>
