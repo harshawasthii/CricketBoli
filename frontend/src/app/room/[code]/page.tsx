@@ -393,8 +393,16 @@ export default function RoomPage({ params }: { params: { code: string } }) {
       
       // Circular turn moves to next person who hasn't tapped out
       moveTurn(tappedOutIds);
-    } catch (err: any) { 
-      setErrorToast(err.message || 'Bid Failed');
+    } catch (e: any) {
+      if (e.message?.includes('increased') || e.status === 409) {
+          // Sync with server if we were stale
+          const details = await fetchWithAuth(`/rooms/${params.code}`);
+          liveAuctionRef.current = { ...liveAuctionRef.current, current_bid: details.current_bid, highest_bidder_id: details.highest_bidder_id };
+          setAuctionState((prev: any) => ({ ...prev, current_bid: details.current_bid, highest_bidder_id: details.highest_bidder_id }));
+          setErrorToast('The price has increased! Please try again.');
+      } else {
+          setErrorToast(e.message || 'Bid failed');
+      }
     }
   };
 
