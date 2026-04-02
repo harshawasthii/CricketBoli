@@ -21,6 +21,26 @@ export async function POST(req: Request, { params }: { params: { roomId: string 
         return NextResponse.json({ error: 'A new bid was placed! Sale cancelled.' }, { status: 409 });
     }
 
+    // Check if player is already sold in this room
+    const { data: existingPlayer } = await supabase.from('rosters')
+        .select('id')
+        .eq('room_id', room.id)
+        .eq('player_id', playerId)
+        .single();
+    if (existingPlayer) {
+        return NextResponse.json({ error: 'Player already sold' }, { status: 400 });
+    }
+
+    // Check if team has reached the 25-player limit
+    const { count: playerCount } = await supabase.from('rosters')
+        .select('id', { count: 'exact', head: true })
+        .eq('room_id', room.id)
+        .eq('user_id', buyerId);
+    
+    if (playerCount && playerCount >= 25) {
+        return NextResponse.json({ error: 'Team limit reached (25 players)' }, { status: 400 });
+    }
+
     // Insert into rosters
     const { error: rosterErr } = await supabase.from('rosters').insert({
         room_id: room.id,

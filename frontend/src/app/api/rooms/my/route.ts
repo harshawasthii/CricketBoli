@@ -10,12 +10,18 @@ export async function GET(req: Request) {
     }
 
     const { data: participations } = await supabase.from('room_participants').select('room_id').eq('user_id', user.id);
-    if (!participations || participations.length === 0) {
-      return NextResponse.json([]);
-    }
+    const participantIds = participations?.map(p => p.room_id) || [];
 
-    const roomIds = participations.map(p => p.room_id);
-    const { data: rooms } = await supabase.from('rooms').select('*').in('id', roomIds).order('created_at', { ascending: false });
+    let query = supabase.from('rooms').select('*');
+    
+    if (participantIds.length > 0) {
+      const idStr = participantIds.map(id => `"${id}"`).join(',');
+      query = query.or(`id.in.(${idStr}),admin_id.eq."${user.id}"`);
+    } else {
+      query = query.eq('admin_id', user.id);
+    }
+    
+    const { data: rooms } = await query.order('created_at', { ascending: false });
 
     const roomsWithPoints = await Promise.all((rooms || []).map(async (room) => {
       const { data: userRoster } = await supabase.from('rosters')
