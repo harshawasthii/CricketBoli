@@ -15,11 +15,13 @@ export async function GET(req: Request) {
 
     // Fetch rooms where the user is an admin
     const { data: adminRooms, error: e1 } = await supabase.from('rooms').select('*').eq('admin_id', user.id);
-    
+    if (e1) return NextResponse.json([{ status: 'COMPLETED', code: `API_E1: ${e1.message}` }]);
+
     // Fetch rooms where the user is a participant
     let participantRooms: any[] = [];
     if (participantIds.length > 0) {
       const { data: pRooms, error: e2 } = await supabase.from('rooms').select('*').in('id', participantIds);
+      if (e2) return NextResponse.json([{ status: 'COMPLETED', code: `API_E2: ${e2.message}` }]);
       if (pRooms) participantRooms = pRooms;
     }
 
@@ -30,6 +32,10 @@ export async function GET(req: Request) {
     
     const rooms = Array.from(allRoomsMap.values())
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    if (rooms.length === 0) {
+      return NextResponse.json([{ status: 'COMPLETED', code: `DEBUG_EMPTY: participations=${participantIds.length}, adminId=${user.id}` }]);
+    }
 
     const roomsWithPoints = await Promise.all((rooms || []).map(async (room) => {
       const { data: userRoster } = await supabase.from('rosters')
