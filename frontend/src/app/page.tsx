@@ -315,10 +315,8 @@ export default function Home() {
                 </h3>
                 <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 sm:space-y-4">
                   {(myRooms.filter(r => r.status === 'COMPLETED' || r.status === 'ENDED').length === 0) ? (
-                    <div className="h-28 sm:h-40 flex flex-col items-center justify-center opacity-80 border-2 border-dashed border-red-800 rounded-2xl sm:rounded-3xl p-4 sm:p-8 text-center bg-red-900/10">
-                      <p className="text-red-400 text-xs sm:text-sm font-bold leading-relaxed break-all">
-                        Debug API: {JSON.stringify(myRooms)}
-                      </p>
+                    <div className="h-28 sm:h-40 flex flex-col items-center justify-center opacity-40 border-2 border-dashed border-slate-800 rounded-2xl sm:rounded-3xl p-4 text-center">
+                      <p className="text-slate-500 text-xs font-bold italic leading-relaxed">No archived <br/> rooms.</p>
                     </div>
                   ) : (
                     myRooms.filter(r => r.status === 'COMPLETED' || r.status === 'ENDED').map((room) => (

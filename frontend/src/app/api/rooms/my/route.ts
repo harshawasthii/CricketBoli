@@ -34,7 +34,7 @@ export async function GET(req: Request) {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     if (rooms.length === 0) {
-      return NextResponse.json([{ status: 'COMPLETED', code: `DEBUG_EMPTY: participations=${participantIds.length}, adminId=${user.id}` }]);
+      return NextResponse.json([]);
     }
 
     const roomsWithPoints = await Promise.all((rooms || []).map(async (room) => {
