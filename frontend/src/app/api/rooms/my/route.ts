@@ -46,7 +46,7 @@ export async function GET(req: Request) {
       let totalPts = 0;
       if (userRoster && userRoster.length > 0) {
         const playerIds = userRoster.map(r => r.player_id);
-        const { data: scores } = await supabase.from('player_scores')
+        const { data: scores } = await supabase.from('match_player_scores')
           .select('points')
           .in('player_id', playerIds);
         

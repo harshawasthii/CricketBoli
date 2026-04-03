@@ -42,13 +42,8 @@ export async function GET(req: Request, { params }: { params: { roomId: string }
 
     // Fetch all scores
     const { data: allScores } = await supabase
-      .from('player_scores')
-      .select('player_id, points');
-
-    const scoreMap = new Map();
-    if (allScores) {
-      allScores.forEach(s => scoreMap.set(s.player_id, s.points));
-    }
+      .from('match_player_scores')
+      .select('player_id, match_number, points');
 
     // Build the scoreboard
     const scoreboard = participants.map(p => {
@@ -56,13 +51,16 @@ export async function GET(req: Request, { params }: { params: { roomId: string }
       
       const players = userRosters.map(r => {
         const pInfo = r.p as any;
-        const score = scoreMap.get(r.player_id) || 0;
+        const playerScores = (allScores || []).filter(s => s.player_id === r.player_id);
+        const totalScore = playerScores.reduce((sum, s) => sum + (s.points || 0), 0);
+        
         return {
           id: pInfo.id,
           name: pInfo.name,
           team: pInfo.team,
           role: pInfo.role,
-          score: score
+          score: totalScore,
+          matchScores: playerScores
         };
       });
 

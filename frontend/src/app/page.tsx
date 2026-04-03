@@ -42,6 +42,7 @@ export default function Home() {
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
   const [scoreboard, setScoreboard] = useState<any[]>([]);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<number | 'overall'>('overall');
 
   useEffect(() => {
     // Play trumpet on landing
@@ -139,6 +140,19 @@ export default function Home() {
       setError('Failed to leave room');
     }
   };
+  const getMatchScore = (row: any, matchNo: number | 'overall') => {
+    if (matchNo === 'overall') return row.totalScore;
+    return row.players.reduce((sum: number, p: any) => sum + (p.matchScores?.find((m: any) => m.match_number === matchNo)?.points || 0), 0);
+  };
+
+  const getPlayerMatchScore = (p: any, matchNo: number | 'overall') => {
+     if (matchNo === 'overall') return p.score;
+     return p.matchScores?.find((m: any) => m.match_number === matchNo)?.points || 0;
+  };
+
+  const availableMatches = Array.from(new Set(
+     (scoreboard || []).flatMap(row => row.players.flatMap((p: any) => (p.matchScores || []).map((ms: any) => ms.match_number)))
+  )).sort((a: any, b: any) => a - b);
 
   if (!user) return <div className="min-h-screen bg-[#0B1120] text-white flex flex-col items-center justify-center font-bold text-2xl gap-6 animate-pulse">
     <div className="w-32 h-32 bg-slate-800 rounded-[40px] flex items-center justify-center shadow-2xl overflow-hidden border border-slate-700">
@@ -365,11 +379,32 @@ export default function Home() {
                 
                 {/* Room Leaderboard in Modal */}
                 <div className="space-y-4">
-                   <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2 mb-6">
-                      <BarChart3 className="w-4 h-4" /> Room Leaderboard
-                   </h3>
+                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                     <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4" /> Room Leaderboard
+                     </h3>
+                     {availableMatches.length > 0 && (
+                       <div className="flex flex-wrap gap-2">
+                         <button 
+                           onClick={() => setSelectedMatch('overall')}
+                           className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${selectedMatch === 'overall' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:bg-slate-800'}`}
+                         >
+                           Overall
+                         </button>
+                         {availableMatches.map((m: any) => (
+                           <button 
+                             key={m}
+                             onClick={() => setSelectedMatch(m)}
+                             className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${selectedMatch === m ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-slate-800/50 text-slate-400 border-slate-700/50 hover:bg-slate-800'}`}
+                           >
+                             Match {m}
+                           </button>
+                         ))}
+                       </div>
+                     )}
+                   </div>
                    <div className="grid grid-cols-1 gap-4">
-                      {[...scoreboard].sort((a,b)=>b.totalScore - a.totalScore).map((row, idx) => (
+                      {[...scoreboard].sort((a,b)=>getMatchScore(b, selectedMatch) - getMatchScore(a, selectedMatch)).map((row, idx) => (
                         <div key={row.userId} className="group overflow-hidden rounded-2xl border border-slate-800 bg-slate-800/20 transition-all hover:bg-slate-800/40">
                            <div 
                              onClick={() => setExpandedUser(expandedUser === row.userId ? null : row.userId)}
@@ -388,7 +423,7 @@ export default function Home() {
                                  <div className="text-right hidden sm:block">
                                     <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Total Power</p>
                                     <p className={`text-4xl font-black tracking-tighter ${idx === 0 ? 'text-emerald-400' : 'text-slate-200'}`}>
-                                      {row.totalScore}
+                                      {getMatchScore(row, selectedMatch)}
                                     </p>
                                  </div>
                                  <div className="p-2 rounded-lg bg-slate-800 border border-slate-700 group-hover:bg-slate-700 transition-colors">
@@ -405,7 +440,7 @@ export default function Home() {
                                      <div key={p.id} className="p-3 bg-slate-950/40 border border-slate-700/30 rounded-xl group/card flex flex-col h-full hover:border-emerald-500/20 transition-all">
                                         <div className="flex justify-between items-start mb-2">
                                            <span className="text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter shrink-0">{p.role?.split(' ')[0]}</span>
-                                           <span className="text-xs font-black text-emerald-400">+{p.score}</span>
+                                           <span className="text-xs font-black text-emerald-400">+{getPlayerMatchScore(p, selectedMatch)}</span>
                                         </div>
                                         <p className="text-xs font-bold text-slate-200 mt-auto truncate">{p.name}</p>
                                         <p className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">{p.team}</p>
