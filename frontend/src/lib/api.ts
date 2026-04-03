@@ -16,6 +16,15 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
 
   const data = await response.json().catch(() => ({}));
 
+  if (response.status === 401) {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return new Promise(() => {});
+  }
+
   if (!response.ok) {
     throw new Error(data.error || 'API Request Failed');
   }

@@ -75,7 +75,13 @@ export default function Home() {
         setMyRooms(data);
       }).catch(err => {
         console.error('Failed to load rooms:', err);
-        setMyRooms([{ status: 'COMPLETED', code: `API_ERROR: ${err.message}` }]);
+        if (err.message === 'Unauthorized' || err.message === 'UNAUTHORIZED') {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          router.push('/login');
+        } else {
+          setMyRooms([{ status: 'COMPLETED', code: `API_ERROR: ${err.message}` }]);
+        }
       });
     }
   }, [router]);
